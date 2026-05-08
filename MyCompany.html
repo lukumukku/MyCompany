@@ -3711,8 +3711,52 @@
 
             const carColors = ['#ff9100','#00e5ff','#ff4081','#69f0ae','#e040fb','#ffff00'];
             let ci = 0;
+
+            // Draw contract pins (target locations) for all active contracts
             (comp.activeContracts || []).forEach(ct => {
-                if(!ct.carActive) return;
+                const color = carColors[ci % carColors.length]; ci++;
+                const px = ct.targetX, py = ct.targetY;
+                if(!px || !py) return;
+                // Pin shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.beginPath(); ctx.ellipse(px, py+22, 7, 3, 0, 0, Math.PI*2); ctx.fill();
+                // Pin body (teardrop)
+                ctx.beginPath();
+                ctx.arc(px, py, 14, 0, Math.PI*2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                ctx.stroke();
+                // Pin tip
+                ctx.beginPath();
+                ctx.moveTo(px - 7, py + 10);
+                ctx.lineTo(px + 7, py + 10);
+                ctx.lineTo(px, py + 24);
+                ctx.closePath();
+                ctx.fillStyle = color; ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+                // Icon inside pin
+                ctx.font = '13px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('📋', px, py);
+                // Contract name label
+                ctx.fillStyle = 'rgba(0,0,0,0.75)';
+                const label = ct.n.length > 14 ? ct.n.substring(0,13)+'…' : ct.n;
+                const lw = ctx.measureText(label).width + 10;
+                ctx.fillRect(px - lw/2, py - 36, lw, 16);
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+                ctx.fillText(label, px, py - 23);
+                // Progress bar under pin
+                const pct = Math.min(1, (ct.prog || 0) / 100);
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(px - 22, py + 27, 44, 7);
+                ctx.fillStyle = color;
+                ctx.fillRect(px - 22, py + 27, 44 * pct, 7);
+            });
+
+            // Reset ci to match car colors with pin colors
+            ci = 0;
+            (comp.activeContracts || []).forEach(ct => {
+                if(!ct.carActive) { ci++; return; }
                 const color = carColors[ci % carColors.length]; ci++;
                 const x = ct.carX, y = ct.carY;
                 // Glow
@@ -3725,7 +3769,7 @@
                 ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
                 ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.stroke();
                 // Car icon
-                ctx.fillStyle='#fff'; ctx.font='bold 10px Inter'; ctx.textAlign='center';
+                ctx.fillStyle='#fff'; ctx.font='bold 10px Inter'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
                 ctx.fillText('🚗', x, y-12);
                 // Phase label
                 const phaseLabel = ct.phase==='driving'?'→':'←';
