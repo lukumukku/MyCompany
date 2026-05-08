@@ -1200,7 +1200,118 @@
             }
         }
 
-        // --- UTILS ---
+        // --- BACKGROUND MUSIC (Lo-Fi Ambient, Web Audio API) ---
+        let _musicCtx = null, _musicGain = null, _musicPlaying = false, _musicScheduler = null;
+        let _musicBeatTime = 0, _musicBeat = 0;
+
+        const _LOFI_CHORDS = [
+            [261.63, 329.63, 392.00, 493.88],  // Cmaj7
+            [220.00, 277.18, 329.63, 415.30],  // Am7
+            [174.61, 220.00, 261.63, 329.63],  // Fmaj7
+            [196.00, 246.94, 293.66, 369.99],  // G7
+        ];
+        const _LOFI_BASS = [130.81, 110.00, 87.31, 98.00];
+        const _LOFI_MELODY = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 783.99, 659.25];
+
+        function _musicEnsureCtx() {
+            if(_musicCtx) return true;
+            try {
+                _musicCtx = new (window.AudioContext || window.webkitAudioContext)();
+                _musicGain = _musicCtx.createGain();
+                _musicGain.gain.value = 0.13;
+                const compressor = _musicCtx.createDynamicsCompressor();
+                _musicGain.connect(compressor);
+                compressor.connect(_musicCtx.destination);
+                return true;
+            } catch(e) { return false; }
+        }
+
+        function _musicNote(freq, start, dur, type, vol, detune) {
+            if(!_musicCtx) return;
+            const o = _musicCtx.createOscillator();
+            const g = _musicCtx.createGain();
+            const filter = _musicCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 1800;
+            o.type = type || 'triangle';
+            o.frequency.value = freq;
+            if(detune) o.detune.value = detune;
+            g.gain.setValueAtTime(0.001, start);
+            g.gain.linearRampToValueAtTime(vol, start + 0.04);
+            g.gain.setValueAtTime(vol, start + dur * 0.6);
+            g.gain.linearRampToValueAtTime(0.001, start + dur);
+            o.connect(filter); filter.connect(g); g.connect(_musicGain);
+            o.start(start); o.stop(start + dur + 0.05);
+        }
+
+        function _musicScheduleBeats() {
+            if(!_musicPlaying || !_musicCtx) return;
+            const lookahead = 0.3, scheduleWindow = 0.2;
+            const now = _musicCtx.currentTime;
+            const bpm = 72, beatLen = 60 / bpm;
+
+            while(_musicBeatTime < now + lookahead) {
+                const t = _musicBeatTime;
+                const chord = _LOFI_CHORDS[Math.floor(_musicBeat / 8) % _LOFI_CHORDS.length];
+                const bassFreq = _LOFI_BASS[Math.floor(_musicBeat / 8) % _LOFI_BASS.length];
+                const step = _musicBeat % 8;
+
+                if(step === 0) {
+                    chord.forEach((f, i) => {
+                        _musicNote(f, t, beatLen * 7.5, 'sine', 0.18 - i * 0.02, (Math.random() - 0.5) * 8);
+                    });
+                    _musicNote(bassFreq, t, beatLen * 3.8, 'triangle', 0.28, 0);
+                }
+                if(step === 4) {
+                    _musicNote(bassFreq * 1.5, t, beatLen * 1.8, 'triangle', 0.18, 0);
+                }
+                if(step % 2 === 0 && Math.random() > 0.45) {
+                    const melFreq = _LOFI_MELODY[(_musicBeat + Math.floor(Math.random() * 2)) % _LOFI_MELODY.length];
+                    _musicNote(melFreq, t + Math.random() * 0.05, beatLen * (0.4 + Math.random() * 0.6), 'sine', 0.10, (Math.random()-0.5)*12);
+                }
+                if(step === 0 || step === 4) {
+                    const bufLen = _musicCtx.sampleRate * 0.08;
+                    const buf = _musicCtx.createBuffer(1, bufLen, _musicCtx.sampleRate);
+                    const data = buf.getChannelData(0);
+                    for(let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+                    const src = _musicCtx.createBufferSource();
+                    const gn = _musicCtx.createGain();
+                    const f = _musicCtx.createBiquadFilter();
+                    f.type = 'bandpass'; f.frequency.value = step === 0 ? 180 : 320; f.Q.value = 1.2;
+                    gn.gain.setValueAtTime(0.001, t);
+                    gn.gain.linearRampToValueAtTime(0.22, t + 0.005);
+                    gn.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+                    src.buffer = buf;
+                    src.connect(f); f.connect(gn); gn.connect(_musicGain);
+                    src.start(t); src.stop(t + 0.08);
+                }
+
+                _musicBeatTime += beatLen;
+                _musicBeat++;
+            }
+            _musicScheduler = setTimeout(_musicScheduleBeats, scheduleWindow * 1000);
+        }
+
+        function startMusic() {
+            if(_musicPlaying) return;
+            if(!_musicEnsureCtx()) return;
+            if(_musicCtx.state === 'suspended') _musicCtx.resume();
+            _musicPlaying = true;
+            _musicBeatTime = _musicCtx.currentTime + 0.1;
+            _musicBeat = 0;
+            _musicScheduleBeats();
+        }
+
+        function stopMusic() {
+            _musicPlaying = false;
+            if(_musicScheduler) { clearTimeout(_musicScheduler); _musicScheduler = null; }
+        }
+
+        function syncMusic() {
+            const acc = getAcc();
+            if(acc && acc.settings.music) startMusic();
+            else stopMusic();
+        }
         function getAcc() { return state.currentUser ? state.accounts[state.currentUser] : null; }
         function getComp() { const acc = getAcc(); return acc ? acc.companies.find(c => c.id === currentCompId) : null; }
         function show(id) {
@@ -1353,6 +1464,7 @@
         }
         function logout() {
             if(gameLoop) clearInterval(gameLoop);
+            stopMusic();
             state.currentUser = null;
             saveState();
             closeModal('modal-settings');
@@ -1433,9 +1545,9 @@
             if(langSel) acc.settings.language = langSel.value;
             saveState();
             applySettings();
+            syncMusic();
         }
         function setDesignVersion(version) {
-            const acc = getAcc();
             if(!acc) return;
             if(!acc.settings) acc.settings = {};
             acc.settings.designVersion = version;
@@ -1458,6 +1570,7 @@
             const dv = acc.settings.designVersion || 'default';
             if(dv === 'retro') document.body.classList.add('theme-retro');
             else if(dv === 'nature') document.body.classList.add('theme-nature');
+            syncMusic();
         }
 
         // --- MENU ---
