@@ -1803,8 +1803,8 @@
             }
 
             // VIP passive income: +1000 every 60 ticks (= 1 real minute)
-            const acc = state.accounts[state.currentUser];
-            if(acc && acc.vip) {
+            const vipAcc = state.accounts[state.currentUser];
+            if(vipAcc && vipAcc.vip) {
                 comp._vipTick = (comp._vipTick || 0) + 1;
                 if(comp._vipTick >= 60) {
                     comp._vipTick = 0;
