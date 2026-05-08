@@ -487,6 +487,40 @@
             {t:'direktor',n:'Direktor',s:800,p:5,vip:true},
             {t:'spezialist',n:'Spezialist',s:600,p:4,vip:true}
         ];
+        // --- EMPLOYEE XP SYSTEM ---
+        // XP needed to reach next level: level 1→2 = 100, 2→3 = 250, 3→4 = 500, ...
+        const EMP_XP_PER_LEVEL = [0, 100, 250, 500, 900, 1500, 2400, 3800, 6000, 9500, 15000];
+        const EMP_MAX_LEVEL = EMP_XP_PER_LEVEL.length; // 11
+        function empXpForLevel(lvl) {
+            // Total XP required to BE at this level
+            let total = 0;
+            for(let i = 1; i < Math.min(lvl, EMP_XP_PER_LEVEL.length); i++) total += EMP_XP_PER_LEVEL[i];
+            return total;
+        }
+        function empLevelFromXp(xp) {
+            let lvl = 1;
+            let total = 0;
+            for(let i = 1; i < EMP_XP_PER_LEVEL.length; i++) {
+                total += EMP_XP_PER_LEVEL[i];
+                if(xp >= total) lvl = i + 1; else break;
+            }
+            return Math.min(lvl, EMP_MAX_LEVEL);
+        }
+        function empXpProgress(xp) {
+            // Returns {level, currentXp, neededXp, pct}
+            const lvl = empLevelFromXp(xp);
+            if(lvl >= EMP_MAX_LEVEL) return {level: lvl, currentXp: xp, neededXp: 0, pct: 100};
+            const xpForThisLevel = empXpForLevel(lvl);
+            const xpForNextLevel = empXpForLevel(lvl + 1);
+            const current = xp - xpForThisLevel;
+            const needed = xpForNextLevel - xpForThisLevel;
+            return {level: lvl, currentXp: current, neededXp: needed, pct: Math.floor((current / needed) * 100)};
+        }
+        // Power bonus per level: +5% per level above 1
+        function empLevelPowerMult(emp) {
+            const lvl = empLevelFromXp(emp.xp || 0);
+            return 1 + (lvl - 1) * 0.05;
+        }
 
         const CAR_TYPES = [
             { id:'kleintransporter', name:'Kleintransporter', icon:'🚐', price:8000,  speedBoost:0.10, repBoost:0,    desc:'Solider Allrounder für kleine Aufträge. +10% Geschwindigkeit.' },
@@ -784,7 +818,9 @@
                     comp.employees.push({
                         id: 'be_' + Math.random().toString(36).slice(2, 10),
                         type: targetType.t,
-                        name: FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)] + ' ' + LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]
+                        name: FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)] + ' ' + LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)],
+                        xp: 0,
+                        level: 1
                     });
                     comp.employeesHiredTotal = (comp.employeesHiredTotal || 0) + 1;
                     acc._lastAction = '👥 Mitarbeiter eingestellt';
@@ -1640,6 +1676,18 @@
             comp.totalEarned += earned;
             comp.completedContracts++;
             comp.reputation = Math.min(5.0, comp.reputation + 0.1);
+            // Give XP to all employees
+            const xpGain = Math.max(10, Math.floor(c.h * 2)); // harder contracts = more XP
+            comp.employees.forEach(emp => {
+                if(!emp.xp) emp.xp = 0;
+                const oldLevel = empLevelFromXp(emp.xp);
+                emp.xp += xpGain;
+                const newLevel = empLevelFromXp(emp.xp);
+                emp.level = newLevel;
+                if(newLevel > oldLevel) {
+                    notify(`🌟 ${emp.name} ist auf Level ${newLevel} aufgestiegen!`, 'success');
+                }
+            });
             addContractReview(comp, c.n);
             const lastReview = comp._reviews && comp._reviews.length ? comp._reviews[comp._reviews.length-1] : null;
             if(lastReview) _socialAddReviewPost(comp, c.n, lastReview.stars);
@@ -1682,8 +1730,9 @@
             let mgrBoost = 1.0;
             comp.employees.forEach(e => {
                 const t = EMP_TYPES_VIP.find(x=>x.t===e.type) || EMP_TYPES[0];
-                if(t.t==='manager') mgrBoost += t.p;
-                else totalPower += t.p;
+                const xpMult = empLevelPowerMult(e); // +5% per level above 1
+                if(t.t==='manager') mgrBoost += t.p * xpMult;
+                else totalPower += t.p * xpMult;
             });
             if(totalPower === 0 && comp.employees.length>0 && comp.employees.some(e=>e.type==='manager')) totalPower = 1; // Manager alone
             if(comp.employees.length === 0) totalPower = 0.3; // CEO doing it alone
@@ -1928,13 +1977,36 @@
                 filtered.forEach((emp, i) => {
                     const et = EMP_TYPES_VIP.find(x=>x.t===emp.type) || EMP_TYPES[0];
                     const realIdx = comp.employees.indexOf(emp);
+                    const xpInfo = empXpProgress(emp.xp || 0);
+                    const isMaxLevel = xpInfo.level >= EMP_MAX_LEVEL;
+                    const levelColor = xpInfo.level >= 10 ? '#ffd700' : xpInfo.level >= 7 ? '#ff9100' : xpInfo.level >= 4 ? '#00e676' : 'var(--primary)';
                     const el = document.createElement('div'); el.className = 'emp-card panel';
                     el.innerHTML = `
-                        <div class="emp-icon">${et.vip?'👑':'👤'}</div>
-                        <h4>${emp.name}</h4>
-                        <div style="color:#888;font-size:12px;margin:5px 0;">Rolle: ${et.n}</div>
-                        <div style="color:#888;font-size:12px;margin-bottom:10px;">Gehalt: ${formatMoney(et.s)}/Woche</div>
-                        <button class="btn-secondary" style="background:var(--danger);color:#fff" onclick="fireEmp(${realIdx})">Feuern</button>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div class="emp-icon" style="margin:0;">${et.vip?'👑':'👤'}</div>
+                                <div>
+                                    <h4 style="margin:0;">${emp.name}</h4>
+                                    <div style="color:#888;font-size:11px;">${et.n} · ${formatMoney(et.s)}/Wo</div>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:13px;font-weight:800;color:${levelColor};">Lv.${xpInfo.level}${isMaxLevel?' 🌟':''}</div>
+                                <div style="font-size:10px;color:#888;">${isMaxLevel ? 'MAX' : (emp.xp||0)+' XP'}</div>
+                            </div>
+                        </div>
+                        ${!isMaxLevel ? `
+                        <div style="margin-bottom:10px;">
+                            <div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:3px;">
+                                <span>XP bis Lv.${xpInfo.level+1}</span>
+                                <span>${xpInfo.currentXp} / ${xpInfo.neededXp}</span>
+                            </div>
+                            <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden;">
+                                <div style="height:100%;width:${xpInfo.pct}%;background:${levelColor};border-radius:4px;transition:width 0.4s;"></div>
+                            </div>
+                        </div>` : `<div style="margin-bottom:10px;font-size:11px;color:#ffd700;text-align:center;">⭐ Maximales Level erreicht!</div>`}
+                        <div style="font-size:11px;color:#888;margin-bottom:8px;">Power-Bonus: +${((empLevelPowerMult(emp)-1)*100).toFixed(0)}%</div>
+                        <button class="btn-secondary" style="background:var(--danger);color:#fff;width:100%;" onclick="fireEmp(${realIdx})">Feuern</button>
                     `;
                     list.appendChild(el);
                 });
@@ -3795,7 +3867,9 @@
             comp.employees.push({
                 id: 'e_'+Date.now(),
                 type: type,
-                name: FIRST_NAMES[Math.floor(Math.random()*FIRST_NAMES.length)] + ' ' + LAST_NAMES[Math.floor(Math.random()*LAST_NAMES.length)]
+                name: FIRST_NAMES[Math.floor(Math.random()*FIRST_NAMES.length)] + ' ' + LAST_NAMES[Math.floor(Math.random()*LAST_NAMES.length)],
+                xp: 0,
+                level: 1
             });
             playSnd('click');
             notify(`${et.n} eingestellt!`, 'success');
