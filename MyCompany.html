@@ -1462,6 +1462,8 @@
 
         // --- MENU ---
         function initMenu() {
+            const acc = getAcc();
+            if(acc && acc.banned) { show('screen-banned'); return; }
             playSnd('click');
             applySettings();
             document.getElementById('menu-player-name').innerText = state.currentUser;
@@ -1783,6 +1785,13 @@
         }
 
         function gameTick() {
+            const acc = getAcc();
+            if(acc && acc.banned) {
+                clearInterval(gameLoop);
+                gameLoop = null;
+                show('screen-banned');
+                return;
+            }
             const comp = getComp();
             if(!comp) return;
 
