@@ -251,7 +251,17 @@
         </div>
     </div>
 
-    <!-- SCREEN: ADMIN -->
+    <div id="screen-banned" class="screen hidden" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);padding:32px;text-align:center;">
+        <div style="font-size:72px;margin-bottom:24px;">🔒</div>
+        <div style="font-size:28px;font-weight:800;color:#f44336;margin-bottom:12px;">Konto gesperrt</div>
+        <div style="font-size:15px;color:#888;max-width:380px;line-height:1.6;margin-bottom:32px;">
+            Dein Konto wurde von einem Administrator gesperrt.<br>
+            Du kannst nicht auf deine Firma zugreifen, bis du entsperrt wirst.<br><br>
+            <span style="color:#aaa;font-size:13px;">Wende dich an den Administrator, um weitere Informationen zu erhalten.</span>
+        </div>
+        <button type="button" class="btn-secondary" onclick="logout()" style="padding:12px 32px;font-size:15px;">Abmelden</button>
+    </div>
+
     <div id="screen-admin" class="screen hidden">
     </div>
 
@@ -624,6 +634,7 @@
             normalized.activeContracts = Array.isArray(normalized.activeContracts) ? normalized.activeContracts : [];
             normalized.availableContracts = Array.isArray(normalized.availableContracts) ? normalized.availableContracts : [];
             normalized.upgrades = Array.isArray(normalized.upgrades) ? normalized.upgrades : [];
+            normalized.warehouses = Array.isArray(normalized.warehouses) ? normalized.warehouses : [];
             normalized.social = normalized.social && typeof normalized.social === 'object' ? normalized.social : { followers: 0, posts: [] };
             normalized.social.followers = Number.isFinite(normalized.social.followers) ? normalized.social.followers : 0;
             normalized.social.posts = Array.isArray(normalized.social.posts) ? normalized.social.posts : [];
@@ -1317,6 +1328,12 @@
             } else {
                 const loginUser = u;
                 if(!state.accounts[loginUser] || state.accounts[loginUser].password !== p) { err.innerText = "Falsche Zugangsdaten."; return; }
+                if(state.accounts[loginUser].banned) {
+                    state.currentUser = loginUser;
+                    saveState();
+                    show('screen-banned');
+                    return;
+                }
                 state.currentUser = loginUser;
                 saveAccountToList(loginUser);
                 saveState();
@@ -2004,6 +2021,8 @@
                         <button onclick="mapZoom(0.8)" class="btn-secondary" style="padding:6px 14px;font-size:18px;font-weight:700;">－</button>
                         <button onclick="mapResetView()" class="btn-secondary" style="padding:6px 12px;font-size:12px;">↺ Reset</button>
                         <span style="font-size:12px;color:#888;margin-left:4px;">📍 ${comp.availableContracts.length} Auftr${comp.availableContracts.length===1?'ag':'äge'}</span>
+                        <span style="font-size:12px;color:#888;margin-left:8px;">|</span>
+                        <span style="font-size:12px;color:${comp.activeContracts.length >= getMaxActiveContracts(comp) ? '#f44336' : 'var(--success)'};margin-left:8px;">⚙️ Aktiv: ${comp.activeContracts.length}/${getMaxActiveContracts(comp)}${(comp.warehouses||[]).length > 0 ? ' 🏭' : ''}</span>
                     </div>
                     <div id="map-wrapper" style="position:relative;width:100%;height:600px;border-radius:12px;border:1px solid var(--border);overflow:hidden;background:#1a1a2e;cursor:grab;">
                          <canvas id="city-map" style="position:absolute;top:0;left:0;image-rendering:pixelated;"></canvas>
@@ -3084,9 +3103,41 @@
             // KI engagement after delay
             setTimeout(() => _socialKiEngage(post, comp), 5000 + Math.random()*10000);
         }
+        function getMaxActiveContracts(comp) {
+            return WAREHOUSE_BASE_CONTRACTS + ((comp.warehouses || []).length * WAREHOUSE_CONTRACT_BONUS);
+        }
+
+        function buyWarehouse(slotIdx) {
+            const comp = getComp();
+            if(!comp) return;
+            if((comp.warehouses || []).some(w => w.slotIdx === slotIdx)) {
+                notify('Dieser Lager-Slot gehört dir bereits!', 'warn');
+                return;
+            }
+            if(comp.money < WAREHOUSE_COST) {
+                notify(`❌ Nicht genug Geld! Du brauchst ${formatMoney(WAREHOUSE_COST)}.`, 'fail');
+                playSnd('fail');
+                return;
+            }
+            comp.money -= WAREHOUSE_COST;
+            if(!comp.warehouses) comp.warehouses = [];
+            comp.warehouses.push({ slotIdx, boughtAt: Date.now() });
+            saveState();
+            notify(`🏭 Lager gekauft! +${WAREHOUSE_CONTRACT_BONUS} Auftrags-Slots (jetzt max. ${getMaxActiveContracts(comp)})`, 'success');
+            playSnd('fanfare');
+            updateTopBar();
+            if(_mapCanvas) _renderMap();
+            renderTab('contracts');
+        }
 
         function acceptContract(idx) {
             const comp = getComp();
+            const maxSlots = getMaxActiveContracts(comp);
+            if(comp.activeContracts.length >= maxSlots) {
+                notify(`⚠️ Limit erreicht! Kaufe ein Lager für mehr Auftrags-Slots. (${comp.activeContracts.length}/${maxSlots})`, 'warn');
+                playSnd('fail');
+                return;
+            }
             const c = comp.availableContracts.splice(idx, 1)[0];
             // Assign an idle car with driver if available
             const W = 4200, H = 2700;
@@ -3579,6 +3630,49 @@
                 });
             }
 
+            // Draw warehouse slots
+            _mapWarehousePins = [];
+            const warehouseComp = _mapComp;
+            const ownedWarehouses = warehouseComp ? (warehouseComp.warehouses || []) : [];
+            WAREHOUSE_SLOTS.forEach((slot, i) => {
+                const px = slot.x * W, py = slot.y * H;
+                const owned = ownedWarehouses.some(w => w.slotIdx === i);
+                _mapWarehousePins.push({ x: px, y: py, slotIdx: i, owned });
+
+                const bgColor = owned ? '#00c853' : '#455a64';
+                const borderColor = owned ? '#b9f6ca' : '#90a4ae';
+                ctx.shadowColor = owned ? 'rgba(0,200,83,0.5)' : 'rgba(0,0,0,0.4)';
+                ctx.shadowBlur = owned ? 18 : 8;
+
+                ctx.beginPath(); ctx.arc(px, py, 22, 0, Math.PI * 2);
+                ctx.fillStyle = bgColor; ctx.fill();
+                ctx.strokeStyle = borderColor; ctx.lineWidth = 3; ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                ctx.font = '18px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(owned ? '🏭' : '🏗️', px, py);
+
+                const slotLabel = owned ? 'Lager' : `Lager kaufen`;
+                ctx.font = 'bold 11px Inter'; ctx.textBaseline = 'alphabetic';
+                const slw = ctx.measureText(slotLabel).width + 14;
+                ctx.fillStyle = 'rgba(0,0,0,0.75)';
+                const slx = px - slw / 2, sly = py - 46, slr = 4;
+                ctx.beginPath();
+                ctx.moveTo(slx + slr, sly); ctx.lineTo(slx + slw - slr, sly);
+                ctx.arcTo(slx + slw, sly, slx + slw, sly + 16, slr);
+                ctx.lineTo(slx + slw, sly + 16); ctx.lineTo(slx, sly + 16);
+                ctx.arcTo(slx, sly, slx + slr, sly, slr);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = owned ? '#b9f6ca' : '#cfd8dc';
+                ctx.fillText(slotLabel, px, sly + 12);
+
+                if(!owned) {
+                    ctx.font = '10px Inter';
+                    ctx.fillStyle = '#ffd740';
+                    ctx.fillText('💰 ' + formatMoney(WAREHOUSE_COST), px, sly - 2);
+                }
+            });
+
             const vig = ctx.createRadialGradient(W/2, H/2, H*0.4, W/2, H/2, H*0.8);
             vig.addColorStop(0, 'rgba(0,0,0,0)');
             vig.addColorStop(1, 'rgba(0,0,0,0.5)');
@@ -3934,6 +4028,10 @@
                 const {x,y}=canvasXY(ex,ey);
                 return _mapPins.find(p=>Math.hypot(p.x-x,p.y-16-y)<16);
             }
+            function getWarehousePinAt(ex,ey) {
+                const {x,y}=canvasXY(ex,ey);
+                return _mapWarehousePins.find(p=>Math.hypot(p.x-x,p.y-y)<28);
+            }
             function getDamageAt(ex,ey) {
                 const comp = getComp();
                 if(!comp || !comp._roadDamage) return null;
@@ -3961,24 +4059,37 @@
             // Pan
             let drag=null;
             wrapper.onmousedown = e => {
-                if(getPinAt(e.clientX,e.clientY) || getDamageAt(e.clientX,e.clientY)) return;
+                if(getPinAt(e.clientX,e.clientY) || getDamageAt(e.clientX,e.clientY) || getWarehousePinAt(e.clientX,e.clientY)) return;
                 drag={sx:e.clientX-_mapOffX, sy:e.clientY-_mapOffY};
                 wrapper.style.cursor='grabbing';
             };
             window.onmouseup = () => { drag=null; if(wrapper) wrapper.style.cursor='grab'; };
             wrapper.onmousemove = e => {
                 if(drag){ _mapOffX=e.clientX-drag.sx; _mapOffY=e.clientY-drag.sy; _applyMapTransform(); return; }
-                
+
                 const pin = getPinAt(e.clientX,e.clientY);
                 const dmg = getDamageAt(e.clientX,e.clientY);
+                const wpin = getWarehousePinAt(e.clientX,e.clientY);
                 const r = wrapper.getBoundingClientRect();
-                
+
                 if(pin) {
                     tooltip.style.display='block';
                     tooltip.style.left=(e.clientX-r.left+16)+'px';
                     tooltip.style.top=(e.clientY-r.top-10)+'px';
                     tooltip.innerHTML=`<b>${pin.ct.n}</b><br><span style="color:#888;font-size:12px;">⏱ ca. ${pin.ct.h}h &nbsp;|&nbsp; 💰 <b style="color:var(--success)">${formatMoney(pin.ct.b)}</b></span><br><span style="color:var(--primary);font-size:11px;margin-top:4px;display:block;">Klicken zum Annehmen</span>`;
                     cvs.style.cursor='pointer';
+                } else if(wpin) {
+                    tooltip.style.display='block';
+                    tooltip.style.left=(e.clientX-r.left+16)+'px';
+                    tooltip.style.top=(e.clientY-r.top-10)+'px';
+                    const wComp = getComp();
+                    const maxNow = getMaxActiveContracts(wComp);
+                    if(wpin.owned) {
+                        tooltip.innerHTML=`<b>🏭 Lager (Slot ${wpin.slotIdx+1})</b><br><span style="color:#888;font-size:12px;">+${WAREHOUSE_CONTRACT_BONUS} Auftrags-Slots</span><br><span style="color:var(--success);font-size:11px;">Dir gehört dieses Lager ✓</span>`;
+                    } else {
+                        tooltip.innerHTML=`<b>🏗️ Lager kaufen (Slot ${wpin.slotIdx+1})</b><br><span style="color:#888;font-size:12px;">+${WAREHOUSE_CONTRACT_BONUS} Auftrags-Slots &nbsp;|&nbsp; 💰 <b style="color:#ffd740">${formatMoney(WAREHOUSE_COST)}</b></span><br><span style="color:var(--primary);font-size:11px;margin-top:4px;display:block;">Klicken zum Kaufen</span>`;
+                    }
+                    cvs.style.cursor = wpin.owned ? 'default' : 'pointer';
                 } else if(dmg && !dmg.repairContractId) {
                     tooltip.style.display='block';
                     tooltip.style.left=(e.clientX-r.left+16)+'px';
@@ -3994,9 +4105,12 @@
             wrapper.onmouseleave=()=>{ tooltip.style.display='none'; };
             wrapper.onclick=e=>{
                 const pin=getPinAt(e.clientX,e.clientY);
+                const wpin=getWarehousePinAt(e.clientX,e.clientY);
                 const dmg=getDamageAt(e.clientX,e.clientY);
                 if(pin) {
                     acceptContract(pin.idx);
+                } else if(wpin && !wpin.owned) {
+                    buyWarehouse(wpin.slotIdx);
                 } else if(dmg && !dmg.repairContractId) {
                     const comp = getComp();
                     const hasCv = (comp.constructionVehicles || []).length > 0;
@@ -4481,6 +4595,9 @@
             saveState();
             if(acc.banned) {
                 notify(`🔒 ${username} wurde gesperrt.`, 'fail');
+                if(state.currentUser === username) {
+                    show('screen-banned');
+                }
             } else {
                 notify(`🔓 ${username} wurde entsperrt.`, 'success');
             }
@@ -4502,6 +4619,8 @@
                 if(state.currentUser === 'admin') {
                     show('screen-admin');
                     renderAdminScreen();
+                } else if(state.accounts[state.currentUser].banned) {
+                    show('screen-banned');
                 } else {
                     initMenu();
                 }
