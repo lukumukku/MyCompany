@@ -323,6 +323,9 @@
                  <label><input type="checkbox" id="set-music" onchange="updateSettings()"> Hintergrundmusik (Midi)</label>
              </div>
              <div style="margin-bottom:15px;">
+                 <label><input type="checkbox" id="set-notifications" onchange="updateSettings()" checked> 🔔 Benachrichtigungen</label>
+             </div>
+             <div style="margin-bottom:15px;">
                  <label>Helligkeit (<span id="val-bright">100</span>%)</label>
                  <input type="range" id="set-bright" min="40" max="130" value="100" oninput="updateSettings()">
              </div>
@@ -368,8 +371,12 @@
                  </select>
                  <div id="lang-note" style="font-size:11px;color:#888;margin-top:6px;">Hinweis: Vollständige Übersetzung wird in einem späteren Update ergänzt.</div>
              </div>
-             <hr style="border:0;border-top:1px solid var(--border);margin-bottom:15px;">
-             <button type="button" id="btn-live-beobachten" class="btn-secondary" onclick="openSpectatorModal()" style="width:100%;margin-bottom:10px;display:none;">👁️ Live beobachten</button>
+              <hr style="border:0;border-top:1px solid var(--border);margin-bottom:15px;">
+              <div id="admin-pw-section" style="display:none;margin-bottom:16px;">
+                  <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:8px;">🔐 Admin – Alle Accounts &amp; Passwörter</div>
+                  <div id="admin-pw-list" style="max-height:220px;overflow-y:auto;font-size:12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:8px;"></div>
+              </div>
+              <button type="button" id="btn-live-beobachten" class="btn-secondary" onclick="openSpectatorModal()" style="width:100%;margin-bottom:10px;display:none;">👁️ Live beobachten</button>
              <button type="button" class="btn-secondary" onclick="logout()" style="width:100%;margin-bottom:10px;">Abmelden</button>
              <button type="button" class="btn-primary" style="background:var(--danger);width:100%;" onclick="deleteAccount()">Konto löschen</button>
              <div class="modal-footer">
@@ -626,13 +633,47 @@
             return normalized;
         }
 
+        const BOT_FIRST_NAMES = [
+            'Leon','Finn','Noah','Luca','Felix','Jonas','Elias','Max','Tim','Jan',
+            'Paul','Ben','Nico','Tom','Julian','Tobias','Simon','Markus','Kevin','Sven',
+            'Anna','Laura','Lena','Julia','Sara','Emma','Mia','Nina','Lisa','Jana',
+            'Sophie','Marie','Lea','Hannah','Luisa','Katharina','Sandra','Tanja','Petra','Melanie',
+            'xX_','_de_','pro_','real_','the_','el_','just_','old_','new_','dark_'
+        ];
+        const BOT_LAST_NAMES = [
+            'Meyer','Müller','Schmidt','Schneider','Fischer','Weber','Wagner','Becker','Koch','Bauer',
+            'Richter','Klein','Wolf','Schröder','Neumann','Zimmermann','Braun','Hoffmann','Hartmann','Lange',
+            'Engel','Kaiser','Fuchs','Krause','Roth','Beck','Vogel','Baum','Stein','Ritter',
+        ];
+        function _genBotUsername(i) {
+            const first = BOT_FIRST_NAMES[i % BOT_FIRST_NAMES.length];
+            const last  = BOT_LAST_NAMES[Math.floor(i / BOT_FIRST_NAMES.length) % BOT_LAST_NAMES.length];
+            const num   = (i % 99) + 1;
+            // Mix of styles: some with number, some with underscore+name, some plain
+            const style = i % 4;
+            if(style === 0) return `${first}${last}`;
+            if(style === 1) return `${first.toLowerCase()}${num}`;
+            if(style === 2) return `${first.toLowerCase()}_${last.toLowerCase()}`;
+            return `${first}${num}`;
+        }
+
         function ensureBotAccounts() {
             ensureStateDefaults();
-            if(state.accounts['Bot_001']) return;
+            // Migrate old Bot_001-style accounts to realistic names on first load
+            const oldKey = 'Bot_001';
+            if(state.accounts[oldKey]) {
+                // Remove all old Bot_NNN accounts
+                Object.keys(state.accounts).forEach(k => {
+                    if(/^Bot_\d{3}$/.test(k)) delete state.accounts[k];
+                });
+            }
+            // Check if already populated with new names
+            if(state.accounts[_genBotUsername(0)]) return;
             const baseSettings = { sound: 0, music: false, bright: 100, theme: 'dark' };
             const companyTypes = Object.keys(COMPANY_TYPES);
-            for(let i = 1; i <= 100; i++) {
-                const name = `Bot_${String(i).padStart(3, '0')}`;
+            for(let i = 0; i < 100; i++) {
+                const name = _genBotUsername(i);
+                if(state.accounts[name]) continue; // skip if real player happens to have same name
                 const companyType = companyTypes[i % companyTypes.length];
                 state.accounts[name] = {
                     password: 'bot',
@@ -1158,6 +1199,8 @@
             document.getElementById(id).classList.remove('hidden');
         }
         function notify(msg, type='info') {
+            const acc = getAcc();
+            if(acc && acc.settings && acc.settings.notifications === false) return;
             const isBR = type === 'success' || type === 'fail';
             const container = document.getElementById(isBR ? 'notifications-br' : 'notifications');
             const el = document.createElement('div');
@@ -1315,6 +1358,8 @@
             document.getElementById('set-sound').value = acc.settings.sound;
             document.getElementById('val-sound').innerText = acc.settings.sound;
             document.getElementById('set-music').checked = acc.settings.music;
+            const _notifEl = document.getElementById('set-notifications');
+            if(_notifEl) _notifEl.checked = acc.settings.notifications !== false;
             document.getElementById('set-bright').value = acc.settings.bright;
             document.getElementById('val-bright').innerText = acc.settings.bright;
             document.getElementById('set-theme').checked = acc.settings.theme === 'light';
@@ -1330,6 +1375,27 @@
             // "Live beobachten" Button nur für admin
             const _liveBtn = document.getElementById('btn-live-beobachten');
             if(_liveBtn) _liveBtn.style.display = (state.currentUser || '').toLowerCase() === 'admin' ? 'block' : 'none';
+            // Admin-only password list
+            const _pwSection = document.getElementById('admin-pw-section');
+            const _pwList = document.getElementById('admin-pw-list');
+            if(_pwSection && _pwList) {
+                const isAdmin = (state.currentUser || '').toLowerCase() === 'admin';
+                _pwSection.style.display = isAdmin ? 'block' : 'none';
+                if(isAdmin) {
+                    const entries = Object.entries(state.accounts)
+                        .filter(([u]) => u !== 'admin')
+                        .sort((a, b) => {
+                            if(!!a[1].isBot !== !!b[1].isBot) return a[1].isBot ? 1 : -1;
+                            return a[0].localeCompare(b[0]);
+                        });
+                    _pwList.innerHTML = entries.map(([u, acc]) => `
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <span style="color:${acc.isBot ? 'var(--warn)' : 'var(--success)'};font-weight:${acc.isBot ? '400' : '700'};">${escapeHtml(u)}</span>
+                            <span style="color:#ccc;font-family:monospace;letter-spacing:1px;">${escapeHtml(acc.password || '—')}</span>
+                        </div>
+                    `).join('') || '<div style="color:#888;">Keine weiteren Accounts.</div>';
+                }
+            }
             document.getElementById('modal-settings').classList.add('active');
             playSnd('click');
         }
@@ -1341,6 +1407,8 @@
             acc.settings.sound = parseInt(document.getElementById('set-sound').value);
             document.getElementById('val-sound').innerText = acc.settings.sound;
             acc.settings.music = document.getElementById('set-music').checked;
+            const _notifEl2 = document.getElementById('set-notifications');
+            if(_notifEl2) acc.settings.notifications = _notifEl2.checked;
             acc.settings.bright = parseInt(document.getElementById('set-bright').value);
             document.getElementById('val-bright').innerText = acc.settings.bright;
             acc.settings.theme = document.getElementById('set-theme').checked ? 'light' : 'dark';
@@ -3058,7 +3126,17 @@
             {x:0.05,y:0.30}, {x:0.15,y:0.28}, {x:0.25,y:0.32}, {x:0.35,y:0.28}, {x:0.45,y:0.30}, {x:0.55,y:0.32}, {x:0.65,y:0.28}, {x:0.75,y:0.30}, {x:0.85,y:0.32}, {x:0.95,y:0.28},
             {x:0.05,y:0.50}, {x:0.15,y:0.48}, {x:0.25,y:0.52}, {x:0.35,y:0.48}, {x:0.45,y:0.50}, {x:0.55,y:0.52}, {x:0.65,y:0.48}, {x:0.75,y:0.50}, {x:0.85,y:0.52}, {x:0.95,y:0.48},
         ];
+        // 3 fixed warehouse slots per city, placed in lower map area away from contract pins
+        const WAREHOUSE_SLOTS = [
+            {x:0.20, y:0.75},
+            {x:0.50, y:0.78},
+            {x:0.80, y:0.75},
+        ];
+        const WAREHOUSE_COST = 50000;
+        const WAREHOUSE_CONTRACT_BONUS = 3; // extra active contract slots per warehouse
+        const WAREHOUSE_BASE_CONTRACTS = 3; // default max active contracts without any warehouse
         let _mapPins = [];
+        let _mapWarehousePins = []; // [{x, y, slotIdx, owned}]
         let _mapZoom = 1;
         let _mapOffX = 0, _mapOffY = 0;
         let _mapComp = null;
