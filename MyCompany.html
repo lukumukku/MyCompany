@@ -369,7 +369,7 @@
                  <div id="lang-note" style="font-size:11px;color:#888;margin-top:6px;">Hinweis: Vollständige Übersetzung wird in einem späteren Update ergänzt.</div>
              </div>
              <hr style="border:0;border-top:1px solid var(--border);margin-bottom:15px;">
-             <button type="button" class="btn-secondary" onclick="openSpectatorModal()" style="width:100%;margin-bottom:10px;">👁️ Live beobachten</button>
+             <button type="button" id="btn-live-beobachten" class="btn-secondary" onclick="openSpectatorModal()" style="width:100%;margin-bottom:10px;display:none;">👁️ Live beobachten</button>
              <button type="button" class="btn-secondary" onclick="logout()" style="width:100%;margin-bottom:10px;">Abmelden</button>
              <button type="button" class="btn-primary" style="background:var(--danger);width:100%;" onclick="deleteAccount()">Konto löschen</button>
              <div class="modal-footer">
@@ -951,6 +951,7 @@
         }
 
         function openSpectatorModal() {
+            if((state.currentUser || '').toLowerCase() !== 'admin') return;
             closeModal('modal-settings');
             openModal('modal-spectator');
             const players = getSpectatorCandidates();
@@ -1290,6 +1291,9 @@
                 const btn = document.getElementById('theme-btn-' + v);
                 if(btn) btn.className = v === dv ? 'btn-primary' : 'btn-secondary';
             });
+            // "Live beobachten" Button nur für admin
+            const _liveBtn = document.getElementById('btn-live-beobachten');
+            if(_liveBtn) _liveBtn.style.display = (state.currentUser || '').toLowerCase() === 'admin' ? 'block' : 'none';
             document.getElementById('modal-settings').classList.add('active');
             playSnd('click');
         }
