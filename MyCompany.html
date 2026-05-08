@@ -3452,12 +3452,61 @@
 
             _drawHQ(ctx, W, H);
 
+            // Draw available contract pins (red clickable needles)
+            _mapPins = [];
+            const comp = _mapComp;
+            if(comp && comp.availableContracts) {
+                comp.availableContracts.forEach((ct, i) => {
+                    const pos = MAP_PIN_POSITIONS[i % MAP_PIN_POSITIONS.length];
+                    const px = pos.x * W, py = pos.y * H;
+                    _mapPins.push({ x: px, y: py, ct: ct, idx: i });
+
+                    // Shadow
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    ctx.beginPath(); ctx.ellipse(px, py + 24, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+                    // Pin circle
+                    ctx.beginPath(); ctx.arc(px, py, 16, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ff1744'; ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
+                    // Pin tip
+                    ctx.beginPath();
+                    ctx.moveTo(px - 8, py + 12);
+                    ctx.lineTo(px + 8, py + 12);
+                    ctx.lineTo(px, py + 28);
+                    ctx.closePath();
+                    ctx.fillStyle = '#ff1744'; ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+                    // Icon
+                    ctx.font = '14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('📋', px, py);
+                    // Label background + text
+                    ctx.font = 'bold 11px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+                    const label = ct.n.length > 15 ? ct.n.substring(0, 14) + '…' : ct.n;
+                    const lw = ctx.measureText(label).width + 12;
+                    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+                    ctx.beginPath();
+                    const lx = px - lw/2, ly = py - 42;
+                    const lr = 4;
+                    ctx.moveTo(lx + lr, ly); ctx.lineTo(lx + lw - lr, ly);
+                    ctx.arcTo(lx + lw, ly, lx + lw, ly + 16, lr);
+                    ctx.lineTo(lx + lw, ly + 16); ctx.lineTo(lx, ly + 16);
+                    ctx.arcTo(lx, ly, lx + lr, ly, lr);
+                    ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(label, px, py - 28);
+                    // Reward
+                    ctx.font = '10px Inter';
+                    ctx.fillStyle = '#00e676';
+                    ctx.fillText('💰 ' + formatMoney(ct.b), px, py - 43);
+                });
+            }
+
             const vig = ctx.createRadialGradient(W/2, H/2, H*0.4, W/2, H/2, H*0.8);
             vig.addColorStop(0, 'rgba(0,0,0,0)');
             vig.addColorStop(1, 'rgba(0,0,0,0.5)');
             ctx.fillStyle = vig; ctx.fillRect(0,0,W,H);
 
-            ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 40px Inter'; ctx.textAlign = 'left';
+            ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 40px Inter'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
             const cityNames = ['Berlin', 'Hamburg', 'München', 'Wien'];
             ctx.fillText(cityNames[idx], 40, H - 40);
         }
