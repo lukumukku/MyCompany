@@ -278,12 +278,15 @@
             </div>
             <div class="topbar-center" id="menu-player-name">Player</div>
             <div class="topbar-right">
+                <button type="button" class="btn-secondary" onclick="openFriendsModal()">👥 Freunde</button>
                 <button type="button" class="btn-secondary" onclick="openSettings()">⚙️</button>
                 <button type="button" class="btn-secondary" onclick="logout()">Logout</button>
             </div>
         </div>
         <div class="menu-container">
             <h2>Meine Firmen</h2>
+            <div id="menu-online-mode-switch" style="display:flex;gap:10px;margin:12px 0 4px;flex-wrap:wrap;"></div>
+            <div id="menu-mode-buttons" style="display:flex;gap:10px;margin:12px 0 4px;flex-wrap:wrap;"></div>
             <div class="companies-grid" id="menu-companies">
                 <!-- Rendered JS -->
             </div>
@@ -469,6 +472,16 @@
         </div>
     </div>
 
+    <div id="modal-friends" class="modal-overlay">
+        <div class="modal" style="max-width:620px;">
+            <h2>👥 Freunde</h2>
+            <div id="friends-modal-content"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn-primary" onclick="closeModal('modal-friends')">Schließen</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- CONSTANTS ---
         const COMPANY_TYPES = {
@@ -481,6 +494,25 @@
             hotel:  { name:'Hotel',           icon:'🏨', color:'#e91e63', start:80000, contracts:[{n:'Zimmer renovieren',b:5000,h:35},{n:'Hochzeitsfeier ausrichten',b:12000,h:60},{n:'Konferenz organisieren',b:8000,h:45},{n:'Restaurantbetrieb',b:4000,h:25},{n:'Spa einrichten',b:15000,h:80},{n:'VIP-Paket anbieten',b:10000,h:50},{n:'Gruppenreise betreuen',b:7000,h:40},{n:'Zimmerservice ausbauen',b:3500,h:22},{n:'Sicherheitssystem',b:6000,h:38},{n:'Parkservice einrichten',b:2500,h:16},{n:'Frühstücksbuffet',b:3000,h:20},{n:'Event-Catering',b:9000,h:50},{n:'Marketingkampagne',b:5500,h:32},{n:'Mitarbeiterschulung',b:4000,h:24},{n:'Bewertungsmanagement',b:2000,h:12}]},
             gamestudio: { name:'Game Studio', icon:'🎮', color:'#9c27b0', start:8000, contracts:[{n:'Mobile Game entwickeln',b:5000,h:50},{n:'Game Design Dokument',b:2000,h:15},{n:'Level Design',b:3000,h:25},{n:'Sound Design',b:2500,h:18},{n:'QA Testing',b:1800,h:12},{n:'Publishing Deal',b:15000,h:90},{n:'Update veröffentlichen',b:2200,h:16},{n:'Multiplayermodus',b:8000,h:65},{n:'Werbegrafiken',b:1500,h:10},{n:'Trailer produzieren',b:4000,h:28},{n:'DLC entwickeln',b:6000,h:45},{n:'Lokalisierung',b:2800,h:20},{n:'KI-Gegner programmieren',b:5500,h:42},{n:'Lootbox-System',b:3500,h:26},{n:'Turnierorganisation',b:4500,h:32}]},
             fitness: { name:'Fitnessstudio',  icon:'🏋️', color:'#4caf50', start:20000, contracts:[{n:'Mitgliedschaftskampagne',b:3000,h:20},{n:'Personal Training',b:1500,h:8},{n:'Kursplan erstellen',b:2000,h:12},{n:'Geräte warten',b:2500,h:16},{n:'Ernährungsberatung',b:1800,h:10},{n:'Firmen-Fitness Vertrag',b:8000,h:50},{n:'Event organisieren',b:4000,h:26},{n:'Neue Geräte aufstellen',b:6000,h:40},{n:'Sauna einrichten',b:10000,h:65},{n:'Kinderbetreuung aufbauen',b:3500,h:22},{n:'Online-Kurse anbieten',b:4500,h:30},{n:'Wettkampf ausrichten',b:7000,h:45},{n:'App entwickeln lassen',b:5000,h:35},{n:'Sponsoring-Deal',b:9000,h:55},{n:'Jahresabo-Kampagne',b:5500,h:36}]},
+            polizei:    { name:'Polizeiwache',    icon:'🚔', color:'#1565c0', start:40000, contracts:[{n:'Streife fahren',b:2000,h:12},{n:'Ermittlung führen',b:5000,h:35},{n:'Verkehrskontrolle',b:1500,h:8},{n:'Zeugenschutz',b:8000,h:50},{n:'Cyberangriff aufklären',b:6000,h:40},{n:'Vermisstensuche',b:4000,h:28},{n:'Einbruch untersuchen',b:3500,h:22},{n:'Drogenrazzia',b:7000,h:48},{n:'Sicherheitskonzept',b:5500,h:36},{n:'Schulprojekt Prävention',b:2500,h:16}]},
+            feuerwehr:  { name:'Feuerwehr',       icon:'🚒', color:'#d32f2f', start:35000, contracts:[{n:'Brand löschen',b:4000,h:10},{n:'Technische Hilfeleistung',b:3500,h:20},{n:'Brandsicherheitscheck',b:2500,h:15},{n:'Rettungseinsatz',b:5000,h:12},{n:'Fahrzeug befreien',b:3000,h:18},{n:'Hochwassereinsatz',b:6000,h:30},{n:'Gefahrstoffeinsatz',b:8000,h:45},{n:'Evakuierung',b:5500,h:28},{n:'Feuerwehrfest',b:3000,h:20},{n:'Löschübung abhalten',b:2000,h:12}]},
+            autohaus:   { name:'Autohaus',        icon:'🚗', color:'#f57f17', start:60000, contracts:[{n:'Fahrzeug verkaufen',b:8000,h:20},{n:'Inspektion durchführen',b:2500,h:10},{n:'Reifenwechsel',b:800,h:4},{n:'Unfallreparatur',b:5000,h:30},{n:'Gebrauchtwagen ankaufen',b:4000,h:15},{n:'Flottenvertrag',b:20000,h:80},{n:'TÜV vorbereiten',b:1500,h:8},{n:'Probefahrt organisieren',b:500,h:2},{n:'Motorrevision',b:7000,h:45},{n:'Lackierung',b:3000,h:20}]},
+            anwalt:     { name:'Anwaltskanzlei',  icon:'⚖️', color:'#4a148c', start:30000, contracts:[{n:'Vertragsrecht',b:5000,h:25},{n:'Strafverteidigung',b:12000,h:60},{n:'Scheidungsverfahren',b:8000,h:45},{n:'Erbschaftsregelung',b:6000,h:35},{n:'Arbeitsrecht',b:4000,h:22},{n:'Unternehmensberatung',b:9000,h:50},{n:'Insolvenzverfahren',b:10000,h:55},{n:'Markenrecht',b:5500,h:30},{n:'Mietstreit',b:3000,h:18},{n:'Datenschutz',b:4500,h:26}]},
+            immobilien: { name:'Immobilien',      icon:'🏘️', color:'#00838f', start:50000, contracts:[{n:'Wohnung vermieten',b:3000,h:18},{n:'Haus verkaufen',b:20000,h:80},{n:'Gutachten erstellen',b:4000,h:24},{n:'Renovierung betreuen',b:8000,h:50},{n:'Mietvertrag aufsetzen',b:1500,h:8},{n:'Zwangsversteigerung',b:12000,h:65},{n:'Neubau verwalten',b:15000,h:75},{n:'Gewerbeimmobilie',b:25000,h:100},{n:'WEG-Verwaltung',b:5000,h:30},{n:'Energieausweis',b:1200,h:6}]},
+            schule:     { name:'Schule/Bildung',  icon:'🎓', color:'#2e7d32', start:15000, contracts:[{n:'Nachhilfekurs',b:800,h:6},{n:'Sprachkurs',b:2000,h:15},{n:'Schulung durchführen',b:3500,h:22},{n:'E-Learning erstellen',b:5000,h:35},{n:'Zeugnisvorbereitung',b:1500,h:10},{n:'Abschlussfeier planen',b:4000,h:25},{n:'Lehrplan entwickeln',b:6000,h:40},{n:'Sportturnier',b:2500,h:16},{n:'Elternabend',b:1000,h:6},{n:'Stipendienprogramm',b:8000,h:50}]},
+            media:      { name:'Medienagentur',   icon:'📺', color:'#c62828', start:12000, contracts:[{n:'Werbespot drehen',b:8000,h:50},{n:'Social Media Kampagne',b:4000,h:28},{n:'Pressemitteilung',b:1500,h:8},{n:'Fotoshooting',b:3000,h:20},{n:'Podcast produzieren',b:2500,h:16},{n:'Influencer-Deal',b:6000,h:35},{n:'Logo designen',b:2000,h:12},{n:'Imagefilm',b:12000,h:70},{n:'Radiowerbung',b:3500,h:22},{n:'Messe-Auftritt',b:9000,h:55}]},
+            security:   { name:'Sicherheitsdienst',icon:'🛡️',color:'#37474f', start:25000, contracts:[{n:'Objekt bewachen',b:3000,h:24},{n:'Event-Sicherheit',b:5000,h:16},{n:'Personenschutz',b:8000,h:48},{n:'Alarmanlage installieren',b:4000,h:28},{n:'Streife durchführen',b:2500,h:20},{n:'Kassentransport',b:6000,h:12},{n:'Detektiv-Einsatz',b:7000,h:40},{n:'Sicherheitsaudit',b:5500,h:32},{n:'Zugangskontrolle',b:3500,h:22},{n:'Krisenintervention',b:9000,h:50}]},
+            salon:      { name:'Friseursalon',    icon:'✂️', color:'#ad1457', start:8000,  contracts:[{n:'Haarschnitt',b:400,h:2},{n:'Hochzeitsstyling',b:2500,h:12},{n:'Colorierung',b:1200,h:6},{n:'Bartpflege',b:600,h:3},{n:'Dauerwelle',b:1500,h:8},{n:'Haarverlängerung',b:3000,h:16},{n:'Kinderschnitt',b:300,h:1},{n:'Make-up',b:800,h:4},{n:'Abi-Ball Styling',b:2000,h:10},{n:'Filmset Styling',b:5000,h:25}]},
+            musik:      { name:'Musikschule',     icon:'🎵', color:'#6a1b9a', start:10000, contracts:[{n:'Klavierstunde',b:500,h:3},{n:'Gitarrenkurs',b:800,h:5},{n:'Band-Coaching',b:3000,h:20},{n:'Konzert organisieren',b:6000,h:35},{n:'Tonstudio buchen',b:4000,h:24},{n:'Musikproduktion',b:8000,h:50},{n:'Chorleitung',b:2000,h:12},{n:'Schlagzeugunterricht',b:700,h:4},{n:'Musikfestival',b:12000,h:70},{n:'Online-Kurs',b:2500,h:15}]},
+            taxi:       { name:'Taxiunternehmen', icon:'🚕', color:'#f9a825', start:20000, contracts:[{n:'Flughafentransfer',b:800,h:4},{n:'Krankentransport',b:1200,h:6},{n:'Nachtfahrt',b:600,h:2},{n:'Schulkind-Service',b:500,h:3},{n:'Firmen-Shuttle',b:5000,h:30},{n:'Eventshuttle',b:3000,h:18},{n:'Kurierfahrt',b:400,h:2},{n:'Rollstuhlfahrt',b:1000,h:5},{n:'Gruppenfahrt',b:2000,h:10},{n:'Monatsabo',b:8000,h:50}]},
+            apotheke:   { name:'Apotheke',        icon:'💊', color:'#00695c', start:35000, contracts:[{n:'Rezeptbelieferung',b:1000,h:5},{n:'Impfberatung',b:1500,h:8},{n:'Heimlieferung',b:800,h:4},{n:'Pflegehilfsmittel',b:2500,h:15},{n:'Notfallmedikamente',b:3000,h:6},{n:'Medikamentenberatung',b:1200,h:7},{n:'Krankenhausvertrag',b:12000,h:60},{n:'Testservice',b:2000,h:10},{n:'Online-Shop',b:8000,h:45},{n:'Schulung Mitarbeiter',b:3500,h:22}]},
+            architektur:{ name:'Architekturbüro', icon:'📐', color:'#4e342e', start:25000, contracts:[{n:'Einfamilienhaus planen',b:8000,h:50},{n:'Stadtplanung',b:20000,h:100},{n:'Innenarchitektur',b:5000,h:30},{n:'Gutachten',b:3500,h:22},{n:'Baugenehmigung',b:4000,h:28},{n:'3D-Visualisierung',b:6000,h:38},{n:'Sanierungsplan',b:9000,h:55},{n:'Gartenplanung',b:2500,h:20},{n:'Büroplanung',b:7000,h:42},{n:'Denkmalschutz',b:12000,h:70}]},
+            reise:      { name:'Reisebüro',       icon:'✈️', color:'#0277bd', start:15000, contracts:[{n:'Pauschalreise buchen',b:3000,h:18},{n:'Kreuzfahrt organisieren',b:12000,h:60},{n:'Geschäftsreise',b:5000,h:25},{n:'Gruppenreise',b:8000,h:45},{n:'Honeymoon-Paket',b:6000,h:35},{n:'Backpacker-Tour',b:2000,h:12},{n:'Visa beantragen',b:1500,h:10},{n:'Hotelkontingent',b:9000,h:50},{n:'Eventreise',b:7000,h:40},{n:'Weltreise planen',b:20000,h:90}]},
+            werkstatt:  { name:'KFZ-Werkstatt',   icon:'🔧', color:'#bf360c', start:30000, contracts:[{n:'Ölwechsel',b:600,h:3},{n:'Bremsenreparatur',b:1800,h:10},{n:'Motorschaden',b:5000,h:35},{n:'HU/AU',b:1200,h:6},{n:'Karosserie',b:4000,h:25},{n:'Klimaanlage',b:2200,h:14},{n:'Getriebe reparieren',b:6000,h:40},{n:'Reifenmontage',b:400,h:2},{n:'Elektrik',b:3000,h:20},{n:'Flottenwartung',b:10000,h:60}]},
+            krankenhaus:{ name:'Krankenhaus',     icon:'🏥', color:'#1b5e20', start:100000,contracts:[{n:'Operation durchführen',b:15000,h:60},{n:'Notaufnahme',b:5000,h:8},{n:'Rehabilitation',b:8000,h:50},{n:'Intensivstation',b:20000,h:80},{n:'Ambulanz-Einsatz',b:4000,h:12},{n:'Forschungsprojekt',b:25000,h:100},{n:'Medizintechnik warten',b:6000,h:35},{n:'Klinikneubau planen',b:50000,h:150},{n:'Schulung Pflegepersonal',b:5000,h:30},{n:'Präventionskampagne',b:8000,h:45}]},
+            event:      { name:'Eventagentur',    icon:'🎉', color:'#e91e63', start:12000, contracts:[{n:'Geburtstag planen',b:2000,h:12},{n:'Firmenfeier',b:8000,h:40},{n:'Konzert veranstalten',b:15000,h:70},{n:'Messe aufbauen',b:10000,h:55},{n:'Hochzeit organisieren',b:12000,h:65},{n:'Teambuilding',b:5000,h:28},{n:'Stadtfest',b:20000,h:90},{n:'Sportveranstaltung',b:8000,h:45},{n:'Aftershow-Party',b:4000,h:20},{n:'Pressekonferenz',b:6000,h:32}]},
+            reinigung:  { name:'Reinigungsfirma', icon:'🧹', color:'#78909c', start:8000,  contracts:[{n:'Büroreinigung',b:1200,h:8},{n:'Grundreinigung',b:2500,h:16},{n:'Fensterreinigung',b:800,h:5},{n:'Baureinigung',b:3500,h:22},{n:'Teppichreinigung',b:1800,h:12},{n:'Krankenhausreinigung',b:5000,h:30},{n:'Graffitientfernung',b:2000,h:14},{n:'Winterdienst',b:1500,h:10},{n:'Großküche',b:3000,h:18},{n:'Jahresvertrag',b:15000,h:80}]},
+            gaertner:   { name:'Gartenbau',       icon:'🌿', color:'#388e3c', start:10000, contracts:[{n:'Rasen mähen',b:400,h:2},{n:'Hecke schneiden',b:600,h:3},{n:'Garten anlegen',b:5000,h:30},{n:'Baumpflege',b:2000,h:14},{n:'Bewässerung installieren',b:3500,h:22},{n:'Wintergarten bauen',b:8000,h:50},{n:'Dachbegrünung',b:6000,h:38},{n:'Landschaftsplanung',b:12000,h:70},{n:'Pflanzenpflege',b:800,h:5},{n:'Jahresvertrag',b:10000,h:60}]},
         };
         const UPGRADES = [
             {id:'off_med', icon:'🏢', name:'Mittleres Büro',       desc:'+45 Mitarbeiter-Slots (max 50)',    cost:12000,  req:null,      apply:g=>{g.maxEmployees=50}},
@@ -559,12 +591,86 @@
         let authMode = 'login';
         let gameLoop = null;
         let currentTab = 'dashboard';
+        const ONLINE_MAP_DISTRICTS = [
+            { name:'Mitte', x:0.53, y:0.34 },
+            { name:'Kreuzberg', x:0.54, y:0.48 },
+            { name:'Prenzlauer Berg', x:0.60, y:0.22 },
+            { name:'Charlottenburg', x:0.35, y:0.36 },
+            { name:'Neukölln', x:0.60, y:0.66 },
+            { name:'Spandau', x:0.15, y:0.38 },
+            { name:'Tempelhof', x:0.46, y:0.63 },
+            { name:'Lichtenberg', x:0.78, y:0.40 }
+        ];
+        const CHAT_BOT_REPLIES = [
+            'Klingt gut, ich prüfe gerade meine Firma.',
+            'Ich bin gleich wieder erreichbar 👌',
+            'Danke für die Nachricht! Wie läuft dein Business?',
+            'Bin gerade in einem Auftrag, melde mich später.',
+            'Starke Idee. Lass uns dazu später schreiben.',
+            'Heute ist viel los, aber ich hab es gesehen.',
+            'Nice, Glückwunsch zum Fortschritt!',
+            'Ich sammle gerade neue Aufträge in Berlin.',
+            'Wenn du willst, kann ich dir später Feedback geben.',
+            'Haha, das klingt nach einem stressigen Tag 😄'
+        ];
+        const runtime = {
+            onlineMode: false,
+            onlineMap: { visible: false, markers: [], contracts: [], playerPos: null, refreshAt: 0 },
+            chat: { activeFriend: null, recorder: null, stream: null, chunks: [], recordingFor: null },
+            companyMenuMode: 'offline'
+        };
 
         let spectatorRefreshInterval = null;
         let spectatorSelectedUser = null;
         let spectatorSelectedCompanyId = null;
         const BOT_RUNTIME = {};
         let botSystemStarted = false;
+
+        function normalizeMessagesShape(messages) {
+            if(!messages || typeof messages !== 'object' || Array.isArray(messages)) return {};
+            const out = {};
+            Object.keys(messages).forEach(username => {
+                out[username] = Array.isArray(messages[username]) ? messages[username].filter(Boolean).map(m => ({
+                    from: m && m.from ? String(m.from) : username,
+                    text: m && typeof m.text === 'string' ? m.text : '',
+                    time: m && m.time ? m.time : new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }),
+                    type: m && m.type === 'voice' ? 'voice' : 'text',
+                    audioData: m && typeof m.audioData === 'string' ? m.audioData : ''
+                })) : [];
+            });
+            return out;
+        }
+
+        function ensureCompanyDefaults(comp) {
+            if(!comp || typeof comp !== 'object') return comp;
+            comp.shopProducts = Array.isArray(comp.shopProducts) ? comp.shopProducts : [];
+            comp.subsidiaries = Array.isArray(comp.subsidiaries) ? comp.subsidiaries : [];
+            comp.warehouses = Array.isArray(comp.warehouses) ? comp.warehouses : [];
+            comp.availableContracts = Array.isArray(comp.availableContracts) ? comp.availableContracts : [];
+            comp.activeContracts = Array.isArray(comp.activeContracts) ? comp.activeContracts : [];
+            return comp;
+        }
+
+        function ensureAccountDefaults(acc, username='') {
+            if(!acc || typeof acc !== 'object') return acc;
+            const baseSettings = { sound:60, music:false, bright:100, theme:'dark', notifications:true, language:'de', designVersion:'default' };
+            acc.settings = acc.settings && typeof acc.settings === 'object' ? { ...baseSettings, ...acc.settings } : { ...baseSettings };
+            acc.companies = Array.isArray(acc.companies) ? acc.companies : [];
+            acc.companies.forEach(ensureCompanyDefaults);
+            acc.balance = Number.isFinite(acc.balance) ? acc.balance : 0;
+            acc.friends = Array.isArray(acc.friends) ? acc.friends : [];
+            acc.friendRequests = Array.isArray(acc.friendRequests) ? acc.friendRequests : [];
+            acc.messages = normalizeMessagesShape(acc.messages || {});
+            if(acc.isBot) {
+                const comp = getBotPrimaryCompany(acc, username || 'Bot');
+                ensureCompanyDefaults(comp);
+            }
+            return acc;
+        }
+
+        function normalizeAllAccounts() {
+            Object.keys(state.accounts || {}).forEach(username => { ensureAccountDefaults(state.accounts[username], username); });
+        }
 
         function ensureStateDefaults() {
             if(!state || typeof state !== 'object') state = { currentUser: null, accounts: {}, adminNotifications: [] };
@@ -641,6 +747,7 @@
             normalized._reviews = Array.isArray(normalized._reviews) ? normalized._reviews : [];
             normalized.cars = Array.isArray(normalized.cars) ? normalized.cars : [];
             normalized.constructionVehicles = Array.isArray(normalized.constructionVehicles) ? normalized.constructionVehicles : [];
+            normalized.shopProducts = Array.isArray(normalized.shopProducts) ? normalized.shopProducts : [];
             return normalized;
         }
 
@@ -680,7 +787,7 @@
             }
             // Check if already populated with new names
             if(state.accounts[_genBotUsername(0)]) return;
-            const baseSettings = { sound: 0, music: false, bright: 100, theme: 'dark' };
+            const baseSettings = { sound: 0, music: false, bright: 100, theme: 'dark', notifications: true, language:'de', designVersion:'default' };
             const companyTypes = Object.keys(COMPANY_TYPES);
             for(let i = 0; i < 100; i++) {
                 const name = _genBotUsername(i);
@@ -691,7 +798,10 @@
                     settings: { ...baseSettings },
                     companies: [createBotCompany(name, companyType)],
                     balance: 0,
-                    isBot: true
+                    isBot: true,
+                    friends: [],
+                    friendRequests: [],
+                    messages: {}
                 };
             }
             saveState();
@@ -1073,6 +1183,7 @@
                         }
                         // Migration: add balance field
                         if (acc.balance === undefined) acc.balance = 0;
+                        ensureAccountDefaults(acc, u);
                     }
                 }
             } catch(e) { console.error(e); }
@@ -1103,6 +1214,8 @@
             } catch(e) { console.error(e); }
             ensureAdminAccount();
             ensureBotAccounts();
+            normalizeAllAccounts();
+            saveState();
         }
         function saveState() { localStorage.setItem('mycompany_v3', JSON.stringify(state)); }
 
@@ -1122,15 +1235,19 @@
             if(!state.accounts['admin']) {
                 state.accounts['admin'] = {
                     password: 'eliasherde1603',
-                    settings: { sound:60, music:false, bright:100, theme:'dark' },
+                    settings: { sound:60, music:false, bright:100, theme:'dark', notifications:true, language:'de', designVersion:'default' },
                     companies: [],
                     balance: 0,
                     isAdmin: true,
                     codes: [],      // { code, value, created }
-                    redeemed: []    // { code, value, by, when }
+                    redeemed: [],   // { code, value, by, when }
+                    friends: [],
+                    friendRequests: [],
+                    messages: {}
                 };
             }
             const adminAcc = state.accounts['admin'];
+            ensureAccountDefaults(adminAcc, 'admin');
             if(!adminAcc.codes) adminAcc.codes = [];
             if(!adminAcc.redeemed) adminAcc.redeemed = [];
             if(!Array.isArray(state.adminNotifications)) state.adminNotifications = [];
@@ -1431,7 +1548,8 @@
             if(authMode === 'register') {
                 if(state.accounts[u]) { err.innerText = "Benutzername existiert bereits."; return; }
                 if(u === 'admin') { err.innerText = "Dieser Benutzername ist reserviert."; return; }
-                state.accounts[u] = { password: p, settings: { sound:60, music:false, bright:100, theme:'dark' }, companies: [], balance: 0 };
+                state.accounts[u] = { password: p, settings: { sound:60, music:false, bright:100, theme:'dark', notifications:true, language:'de', designVersion:'default' }, companies: [], balance: 0, friends: [], friendRequests: [], messages: {} };
+                ensureAccountDefaults(state.accounts[u], u);
                 state.currentUser = u;
                 saveAccountToList(u);
                 saveState();
@@ -1465,9 +1583,13 @@
         function logout() {
             if(gameLoop) clearInterval(gameLoop);
             stopMusic();
+            stopVoiceRecording(true);
+            runtime.onlineMap.visible = false;
+            runtime.chat.activeFriend = null;
             state.currentUser = null;
             saveState();
             closeModal('modal-settings');
+            closeModal('modal-friends');
             closeSpectatorModal();
             document.getElementById('auth-user').value = '';
             document.getElementById('auth-pass').value = '';
@@ -1579,15 +1701,30 @@
             if(acc && acc.banned) { show('screen-banned'); return; }
             playSnd('click');
             applySettings();
+            ensureAccountDefaults(acc, state.currentUser || '');
             document.getElementById('menu-player-name').innerText = state.currentUser;
+            setMenuMode(runtime.onlineMode ? 'online' : 'normal');
             show('screen-menu');
             renderCompanies();
         }
         function renderCompanies() {
             const acc = getAcc();
             const grid = document.getElementById('menu-companies');
+            const modeBar = document.getElementById('menu-mode-buttons');
+            if(modeBar) {
+                modeBar.innerHTML = `
+                    <button type="button" class="${runtime.companyMenuMode === 'offline' ? 'btn-primary' : 'btn-secondary'}" onclick="setCompanyMenuMode('offline')">🏠 Offline</button>
+                    <button type="button" class="${runtime.companyMenuMode === 'online' ? 'btn-primary' : 'btn-secondary'}" onclick="setCompanyMenuMode('online')">🌐 Online (Beta)</button>
+                `;
+            }
+            if(runtime.companyMenuMode === 'online') {
+                showOnlineMapOverlay();
+            } else {
+                hideOnlineMapOverlay();
+            }
             grid.innerHTML = '';
             acc.companies.forEach(c => {
+                ensureCompanyDefaults(c);
                 const ct = COMPANY_TYPES[c.companyType];
                 const card = document.createElement('div');
                 card.className = 'company-card';
@@ -1616,6 +1753,197 @@
             newCard.innerText = "+ Neue Firma gründen";
             newCard.onclick = openCreateModal;
             grid.appendChild(newCard);
+        }
+
+        function setCompanyMenuMode(mode) {
+            runtime.companyMenuMode = mode === 'online' ? 'online' : 'offline';
+            renderCompanies();
+        }
+
+        function setMenuMode(mode) {
+            runtime.onlineMode = mode === 'online';
+            const buttons = document.getElementById('menu-online-mode-switch');
+            if(buttons) {
+                buttons.innerHTML = `
+                    <button type="button" class="${runtime.onlineMode ? 'btn-secondary' : 'btn-primary'}" onclick="setMenuMode('normal')">🏠 Normal</button>
+                    <button type="button" class="${runtime.onlineMode ? 'btn-primary' : 'btn-secondary'}" onclick="setMenuMode('online')">🌐 Online</button>
+                `;
+            }
+            if(runtime.onlineMode) showOnlineMapOverlay();
+            else hideOnlineMapOverlay();
+        }
+
+        function ensureOnlineMapState() {
+            const map = runtime.onlineMap;
+            if(!map.playerPos) map.playerPos = { x:0.5, y:0.52 };
+            if(!map.markers.length) {
+                const bots = Object.entries(state.accounts)
+                    .filter(([username, acc]) => acc && acc.isBot && acc.companies && acc.companies[0])
+                    .slice(0, 26);
+                map.markers = bots.map(([username, acc], index) => ({
+                    username,
+                    companyName: acc.companies[0].companyName,
+                    color: (COMPANY_TYPES[acc.companies[0].companyType] || { color:'#64b5f6' }).color,
+                    x: 0.08 + ((index * 37) % 82) / 100,
+                    y: 0.12 + ((index * 19) % 72) / 100
+                }));
+            }
+            if(!map.contracts.length || Date.now() >= map.refreshAt) refreshOnlineContracts();
+        }
+
+        function refreshOnlineContracts() {
+            runtime.onlineMap.contracts = Array.from({ length: 18 }, (_, index) => ({
+                id: 'omap_' + Date.now() + '_' + index,
+                x: 0.10 + ((index * 17) % 78) / 100,
+                y: 0.12 + ((index * 29) % 70) / 100,
+                reward: 1200 + Math.floor(Math.random() * 4800),
+                title: ['Schnellauftrag','VIP-Termin','Lieferroute','Einsatz','Servicevertrag'][index % 5]
+            }));
+            runtime.onlineMap.refreshAt = Date.now() + 30000;
+            if(runtime.onlineMap.visible) drawOnlineMap();
+        }
+
+        function showOnlineMapOverlay() {
+            runtime.onlineMap.visible = true;
+            ensureOnlineMapState();
+            runtime.companyMenuMode = 'online';
+            let overlay = document.getElementById('online-map-overlay');
+            if(!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'online-map-overlay';
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:120;background:rgba(10,10,18,0.96);display:flex;flex-direction:column;padding:20px;';
+                overlay.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:24px;font-weight:800;">🌐 Berlin Online-Modus</div>
+                            <div style="color:#8c91b3;font-size:13px;">Klicke rote Pins, um Aufträge wegzuschnappen.</div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <span id="online-map-refresh-label" style="font-size:12px;color:#aaa;"></span>
+                            <button type="button" class="btn-secondary" onclick="hideOnlineMapOverlay()">🔙 Zurück</button>
+                        </div>
+                    </div>
+                    <canvas id="online-map-canvas" style="flex:1;width:100%;border:1px solid #2a2a40;border-radius:18px;background:#1a1a2e;"></canvas>
+                `;
+                document.body.appendChild(overlay);
+                const canvas = document.getElementById('online-map-canvas');
+                canvas.addEventListener('click', handleOnlineMapClick);
+                window.addEventListener('resize', resizeOnlineCanvas);
+            } else {
+                overlay.style.display = 'flex';
+            }
+            resizeOnlineCanvas();
+            drawOnlineMap();
+        }
+
+        function hideOnlineMapOverlay() {
+            runtime.onlineMap.visible = false;
+            runtime.onlineMode = false;
+            runtime.companyMenuMode = 'offline';
+            const overlay = document.getElementById('online-map-overlay');
+            if(overlay) overlay.style.display = 'none';
+            const menuButtons = document.getElementById('menu-online-mode-switch');
+            if(menuButtons) {
+                menuButtons.innerHTML = `
+                    <button type="button" class="btn-primary" onclick="setMenuMode('normal')">🏠 Normal</button>
+                    <button type="button" class="btn-secondary" onclick="setMenuMode('online')">🌐 Online</button>
+                `;
+            }
+        }
+
+        function resizeOnlineCanvas() {
+            const canvas = document.getElementById('online-map-canvas');
+            if(!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = Math.max(900, Math.floor(rect.width));
+            canvas.height = Math.max(520, Math.floor(rect.height));
+            if(runtime.onlineMap.visible) drawOnlineMap();
+        }
+
+        function drawOnlineMap() {
+            const canvas = document.getElementById('online-map-canvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = '#2f364d';
+            ctx.lineWidth = 2;
+            for(let x = W * 0.12; x < W * 0.9; x += W * 0.085) {
+                ctx.beginPath();
+                ctx.moveTo(x, H * 0.08);
+                ctx.lineTo(x + Math.sin(x * 0.01) * 24, H * 0.92);
+                ctx.stroke();
+            }
+            for(let y = H * 0.14; y < H * 0.88; y += H * 0.1) {
+                ctx.beginPath();
+                ctx.moveTo(W * 0.06, y);
+                ctx.lineTo(W * 0.94, y + Math.cos(y * 0.015) * 18);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = '#474f6d';
+            ctx.lineWidth = 3;
+            [[0.12,0.85,0.78,0.12],[0.05,0.20,0.95,0.72],[0.25,0.08,0.82,0.9],[0.14,0.52,0.92,0.32]].forEach(line => {
+                ctx.beginPath();
+                ctx.moveTo(line[0] * W, line[1] * H);
+                ctx.lineTo(line[2] * W, line[3] * H);
+                ctx.stroke();
+            });
+            ONLINE_MAP_DISTRICTS.forEach(d => {
+                ctx.fillStyle = '#8ea0c6';
+                ctx.font = 'bold 18px Inter';
+                ctx.fillText(d.name, d.x * W, d.y * H);
+            });
+            runtime.onlineMap.markers.forEach(marker => {
+                const x = marker.x * W, y = marker.y * H;
+                ctx.fillStyle = marker.color;
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#eef1ff';
+                ctx.font = '12px Inter';
+                ctx.fillText(marker.companyName, x + 10, y - 8);
+            });
+            runtime.onlineMap.contracts.forEach(pin => {
+                const x = pin.x * W, y = pin.y * H;
+                ctx.fillStyle = '#ff5252';
+                ctx.beginPath();
+                ctx.arc(x, y, 7, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffd1d1';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x, y + 8);
+                ctx.lineTo(x, y + 16);
+                ctx.stroke();
+            });
+            const px = runtime.onlineMap.playerPos.x * W;
+            const py = runtime.onlineMap.playerPos.y * H;
+            ctx.fillStyle = '#ffd54f';
+            ctx.font = '28px Inter';
+            ctx.fillText('★', px - 10, py + 10);
+            const label = document.getElementById('online-map-refresh-label');
+            if(label) label.textContent = `Neue Pins in ${Math.max(0, Math.ceil((runtime.onlineMap.refreshAt - Date.now()) / 1000))}s`;
+        }
+
+        function handleOnlineMapClick(event) {
+            const canvas = document.getElementById('online-map-canvas');
+            const comp = getComp() || (getAcc() && getAcc().companies && getAcc().companies[0]);
+            if(!canvas || !comp) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
+            const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+            const hitIndex = runtime.onlineMap.contracts.findIndex(pin => Math.hypot(pin.x * canvas.width - x, pin.y * canvas.height - y) <= 18);
+            if(hitIndex === -1) return;
+            const pin = runtime.onlineMap.contracts.splice(hitIndex, 1)[0];
+            comp.money += pin.reward;
+            comp.totalEarned = (comp.totalEarned || 0) + pin.reward;
+            saveState();
+            notify(`🌐 ${pin.title} geschnappt! +${formatMoney(pin.reward)}`, 'success');
+            drawOnlineMap();
+            if(currentCompId === comp.id) updateTopBar();
+            if(document.getElementById('menu-companies')) renderCompanies();
         }
 
         // --- COMPANY CREATION & LOGO ---
@@ -1773,8 +2101,9 @@
                 completedContracts: 0, failedContracts: 0,
                 upgrades: [], speedMult: 1.0, contractQuality: 1.0,
                 day: 1, hour: 8, totalEarned: 0, statsHistory: [], weeklyContracts: [],
-                subsidiaries: [], warehouses: []
+                subsidiaries: [], warehouses: [], shopProducts: []
             };
+            ensureCompanyDefaults(nc);
             acc.companies.push(nc);
             saveState();
             closeModal('modal-create');
@@ -1927,6 +2256,7 @@
                     notify('👑 VIP: +1.000 Geld erhalten!', 'info');
                 }
             }
+            processShopSales(comp);
             comp.hour++;
             if(comp.hour >= 24) {
                 comp.hour = 0; comp.day++;
@@ -2052,8 +2382,8 @@
                 }
              } else if(t === 'active') {
                  // active tab now redirects to phone, nothing to update here
-             } else if(t === 'phone') {
-                 if(_phoneApp === 'contracts') {
+              } else if(t === 'phone') {
+                  if(_phoneApp === 'contracts') {
                      const phaseMap = { driving:'🚗 Fährt zum Auftrag', working:'🔧 In Arbeit', returning:'🚙 Rückfahrt zum HQ' };
                      const phaseColor = { driving:'#00e5ff', working:'#00e676', returning:'#ff9100' };
                      comp.activeContracts.forEach(ct => {
@@ -2066,12 +2396,15 @@
                          if(phaseEl) { phaseEl.textContent = phaseMap[ct.phase]||'🔧 In Arbeit'; phaseEl.style.color = phaseColor[ct.phase]||'#00e676'; }
                      });
                      const renderedCount = document.querySelectorAll('[id^="phone-ct-"]').length;
-                     if(renderedCount !== comp.activeContracts.length) {
-                         const screen = document.getElementById('phone-screen');
-                         if(screen) renderPhoneContracts(screen);
-                     }
-                 }
-             }
+                      if(renderedCount !== comp.activeContracts.length) {
+                          const screen = document.getElementById('phone-screen');
+                          if(screen) renderPhoneContracts(screen);
+                      }
+                  } else if(_phoneApp === 'chat') {
+                      const screen = document.getElementById('phone-screen');
+                      if(screen && runtime.chat.activeFriend) renderPhoneChat(screen);
+                  }
+              }
              if(t === 'iseeyou') {
                  renderIseeYouCards();
              }
@@ -2662,8 +2995,11 @@
 
         function renderShopTab(c) {
             const acc = state.accounts[state.currentUser];
+            const comp = getComp();
+            if(comp) ensureCompanyDefaults(comp);
             const hasVip = !!acc.vip;
             const bal = (acc.balance || 0).toFixed(2);
+            const products = comp ? comp.shopProducts : [];
             // Daily deals
             const deals = getDailyDeals();
             const nowMs = Date.now();
@@ -2674,6 +3010,34 @@
             const ss = String(secsLeft%60).padStart(2,'0');
             c.innerHTML = `
                 <h2>🛍️ Shop</h2>
+                ${comp ? `
+                <div class="shop-section" style="margin-bottom:18px;">
+                    <h3>🏪 Mein Laden</h3>
+                    <div style="background:#121223;border:1px solid #2a2a40;border-radius:12px;padding:14px;margin-bottom:14px;">
+                        <div style="font-size:12px;color:#888;margin-bottom:10px;">Bis zu 3 Produkte. Verkäufe laufen automatisch im Spieltakt.</div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <input id="shop-product-name" type="text" maxlength="32" placeholder="Produktname" style="flex:1;min-width:180px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+                            <input id="shop-product-price" type="number" min="1" max="999999" placeholder="Preis" style="width:130px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+                            <button type="button" class="btn-primary" onclick="saveShopProduct()">Produkt speichern</button>
+                        </div>
+                        <div id="shop-product-edit-hint" style="font-size:11px;color:#666;margin-top:8px;"></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                        ${products.length ? products.map(product => `<div style="background:#111;border:1px solid #2a2a40;border-radius:12px;padding:12px;">
+                            <div style="display:flex;justify-content:space-between;gap:10px;align-items:start;margin-bottom:8px;">
+                                <div>
+                                    <div style="font-weight:700;">${escapeHtml(product.name)}</div>
+                                    <div style="font-size:12px;color:#888;">Preis: ${formatMoney(Number(product.price || 0))}</div>
+                                </div>
+                                <div style="font-size:11px;color:var(--success);">${product.sold || 0} verkauft</div>
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button type="button" class="btn-secondary" style="flex:1;" onclick="editShopProduct('${product.id}')">Bearbeiten</button>
+                                <button type="button" class="btn-secondary" style="flex:1;" onclick="deleteShopProduct('${product.id}')">Löschen</button>
+                            </div>
+                        </div>`).join('') : '<div style="color:#666;font-size:13px;">Noch keine Produkte angelegt.</div>'}
+                    </div>
+                </div>` : ''}
                 <div style="background:linear-gradient(135deg,#1a2a1a,#1a3a1a);border:1px solid var(--success);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;">
                     <div style="font-size:28px;">💳</div>
                     <div>
@@ -2776,6 +3140,80 @@
                     </div>
                 </div>
             `;
+            if(comp) {
+                const hint = document.getElementById('shop-product-edit-hint');
+                if(hint) hint.textContent = comp._editingShopProductId ? 'Bearbeitungsmodus aktiv.' : '';
+            }
+        }
+
+        function saveShopProduct() {
+            const comp = getComp();
+            if(!comp) return;
+            ensureCompanyDefaults(comp);
+            const nameInput = document.getElementById('shop-product-name');
+            const priceInput = document.getElementById('shop-product-price');
+            const name = nameInput ? nameInput.value.trim() : '';
+            const price = Number(priceInput ? priceInput.value : 0);
+            if(!name || !price || price <= 0) {
+                notify('Bitte Produktname und Preis eingeben.', 'fail');
+                return;
+            }
+            if(!comp._editingShopProductId && comp.shopProducts.length >= 3) {
+                notify('Maximal 3 Produkte möglich.', 'fail');
+                return;
+            }
+            const existing = comp.shopProducts.find(product => product.id === comp._editingShopProductId);
+            if(existing) {
+                existing.name = name;
+                existing.price = price;
+            } else {
+                comp.shopProducts.push({ id:'prod_' + Date.now(), name, price, sold:0 });
+            }
+            comp._editingShopProductId = null;
+            saveState();
+            notify('🏪 Produkt gespeichert.', 'success');
+            renderTab('shop');
+        }
+
+        function editShopProduct(id) {
+            const comp = getComp();
+            if(!comp) return;
+            ensureCompanyDefaults(comp);
+            const product = comp.shopProducts.find(item => item.id === id);
+            if(!product) return;
+            comp._editingShopProductId = id;
+            renderTab('shop');
+            const nameInput = document.getElementById('shop-product-name');
+            const priceInput = document.getElementById('shop-product-price');
+            if(nameInput) nameInput.value = product.name;
+            if(priceInput) priceInput.value = product.price;
+            const hint = document.getElementById('shop-product-edit-hint');
+            if(hint) hint.textContent = 'Produkt wird bearbeitet.';
+        }
+
+        function deleteShopProduct(id) {
+            const comp = getComp();
+            if(!comp) return;
+            ensureCompanyDefaults(comp);
+            comp.shopProducts = comp.shopProducts.filter(product => product.id !== id);
+            if(comp._editingShopProductId === id) comp._editingShopProductId = null;
+            saveState();
+            notify('🗑️ Produkt gelöscht.', 'info');
+            renderTab('shop');
+        }
+
+        function processShopSales(comp) {
+            ensureCompanyDefaults(comp);
+            if(!comp.shopProducts.length) return;
+            comp.shopProducts.forEach(product => {
+                if(Math.random() < 0.06) {
+                    const earned = Number(product.price || 0);
+                    comp.money += earned;
+                    comp.totalEarned = (comp.totalEarned || 0) + earned;
+                    product.sold = (product.sold || 0) + 1;
+                    if(Math.random() < 0.35) notify(`🏪 ${product.name} verkauft! +${formatMoney(earned)}`, 'success');
+                }
+            });
         }
 
         let pendingPurchase = null;
@@ -2886,6 +3324,201 @@
         let _phoneApp = null;
         let _faqHistory = [];
 
+        function ensureChatThread(acc, username) {
+            ensureAccountDefaults(acc, state.currentUser || '');
+            if(!acc.messages[username]) acc.messages[username] = [];
+            return acc.messages[username];
+        }
+
+        function chatTimestamp() {
+            return new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+        }
+
+        function pushChatMessage(ownerUsername, friendUsername, message) {
+            const owner = state.accounts[ownerUsername];
+            if(!owner) return;
+            const thread = ensureChatThread(owner, friendUsername);
+            thread.push(message);
+        }
+
+        function getChatMessages(friendUsername) {
+            const acc = getAcc();
+            if(!acc || !friendUsername) return [];
+            return ensureChatThread(acc, friendUsername);
+        }
+
+        function scrollChatToBottom() {
+            setTimeout(() => {
+                const body = document.getElementById('phone-chat-body');
+                if(body) body.scrollTop = body.scrollHeight;
+            }, 10);
+        }
+
+        function renderPhoneChat(screen) {
+            const acc = getAcc();
+            if(!acc) return;
+            ensureAccountDefaults(acc, state.currentUser || '');
+            const friends = acc.friends.filter(username => state.accounts[username]);
+            const activeFriend = runtime.chat.activeFriend && friends.includes(runtime.chat.activeFriend) ? runtime.chat.activeFriend : null;
+            if(!activeFriend) {
+                runtime.chat.activeFriend = null;
+                screen.innerHTML = `
+                    <div style="padding:12px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                            <div onclick="phoneHome()" style="color:#888;cursor:pointer;font-size:18px;">←</div>
+                            <b style="font-size:14px;">💬 Chat</b>
+                        </div>
+                        ${friends.length === 0 ? '<div style="color:#555;font-size:13px;text-align:center;padding:40px 0;">Noch keine Freunde.<br><span style="font-size:11px;">Füge im Menü zuerst Freunde hinzu.</span></div>' : `<div style="display:grid;gap:10px;">${friends.map(username => {
+                            const other = state.accounts[username];
+                            const company = other && other.companies && other.companies[0] ? other.companies[0] : null;
+                            const last = getChatMessages(username).slice(-1)[0];
+                            return `<div onclick="openPhoneChat('${escapeHtml(username)}')" style="background:#111;border:1px solid #2a2a40;border-radius:12px;padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                                <div>
+                                    <div style="font-weight:700;font-size:13px;">${escapeHtml(username)}</div>
+                                    <div style="font-size:11px;color:#666;">${last ? escapeHtml(last.type === 'voice' ? '🎤 Sprachnachricht' : last.text.slice(0, 34)) : (company ? escapeHtml(company.companyName) : 'Noch keine Nachrichten')}</div>
+                                </div>
+                                <div style="font-size:11px;color:#888;">${last ? escapeHtml(last.time) : ''}</div>
+                            </div>`;
+                        }).join('')}</div>`}
+                    </div>
+                `;
+                return;
+            }
+            const messages = getChatMessages(activeFriend);
+            screen.innerHTML = `
+                <div style="display:flex;flex-direction:column;height:420px;">
+                    <div style="padding:12px;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;gap:8px;">
+                        <div onclick="runtime.chat.activeFriend=null;renderPhoneChat(document.getElementById('phone-screen'))" style="color:#888;cursor:pointer;font-size:18px;">←</div>
+                        <b style="font-size:14px;">${escapeHtml(activeFriend)}</b>
+                        <span style="margin-left:auto;font-size:10px;color:#666;">${state.accounts[activeFriend] && state.accounts[activeFriend].isBot ? 'Bot online' : 'Freund'}</span>
+                    </div>
+                    <div id="phone-chat-body" style="flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px;background:#0b0b16;">
+                        ${messages.length === 0 ? '<div style="color:#555;font-size:12px;text-align:center;padding:30px 0;">Noch keine Nachrichten.</div>' : messages.map(msg => {
+                            const mine = msg.from === state.currentUser;
+                            return `<div style="align-self:${mine ? 'flex-end' : 'flex-start'};max-width:78%;background:${mine ? '#6c63ff22' : '#1a1a2e'};border:1px solid ${mine ? '#6c63ff44' : '#2a2a40'};border-radius:12px;padding:8px 10px;">
+                                <div style="font-size:10px;color:#777;margin-bottom:4px;">${escapeHtml(msg.from)} · ${escapeHtml(msg.time)}</div>
+                                ${msg.type === 'voice' && msg.audioData ? `<audio controls style="width:100%;height:32px;"><source src="${msg.audioData}"></audio>` : `<div style="font-size:12px;line-height:1.45;word-break:break-word;">${escapeHtml(msg.text)}</div>`}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                    <div style="padding:10px;border-top:1px solid #1a1a2e;display:grid;gap:8px;">
+                        <div style="display:flex;gap:8px;">
+                            <input id="phone-chat-input" type="text" placeholder="Nachricht schreiben..." style="flex:1;padding:10px;border-radius:10px;border:1px solid #2a2a40;background:#111;color:#fff;" onkeydown="if(event.key==='Enter') sendChatMessage()">
+                            <button type="button" class="btn-primary" style="padding:10px 12px;" onclick="sendChatMessage()">Senden</button>
+                        </div>
+                        <button type="button" class="btn-secondary" id="voice-record-btn" onmousedown="startVoiceRecording()" onmouseup="stopVoiceRecording()" onmouseleave="stopVoiceRecording()" ontouchstart="startVoiceRecording();event.preventDefault();" ontouchend="stopVoiceRecording();event.preventDefault();">🎤 Halten</button>
+                    </div>
+                </div>
+            `;
+            scrollChatToBottom();
+        }
+
+        function openPhoneChat(username) {
+            runtime.chat.activeFriend = username;
+            const screen = document.getElementById('phone-screen');
+            if(screen) renderPhoneChat(screen);
+        }
+
+        function sendChatMessage() {
+            const acc = getAcc();
+            const friend = runtime.chat.activeFriend;
+            const input = document.getElementById('phone-chat-input');
+            if(!acc || !friend || !input) return;
+            const text = input.value.trim();
+            if(!text) return;
+            const message = { from: state.currentUser, text, time: chatTimestamp(), type:'text', audioData:'' };
+            pushChatMessage(state.currentUser, friend, message);
+            pushChatMessage(friend, state.currentUser, message);
+            input.value = '';
+            saveState();
+            const screen = document.getElementById('phone-screen');
+            if(screen && _phoneApp === 'chat') renderPhoneChat(screen);
+            scheduleBotReply(friend);
+        }
+
+        function startVoiceRecording() {
+            const friend = runtime.chat.activeFriend;
+            if(!friend || runtime.chat.recordingFor) return;
+            if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+                notify('Sprachnachrichten werden auf diesem Gerät nicht unterstützt.', 'fail');
+                return;
+            }
+            navigator.mediaDevices.getUserMedia({ audio:true }).then(stream => {
+                runtime.chat.stream = stream;
+                runtime.chat.chunks = [];
+                runtime.chat.recordingFor = friend;
+                runtime.chat.recorder = new MediaRecorder(stream);
+                runtime.chat.recorder.ondataavailable = ev => {
+                    if(ev.data && ev.data.size > 0) runtime.chat.chunks.push(ev.data);
+                };
+                runtime.chat.recorder.onstop = () => finalizeVoiceRecording(friend);
+                runtime.chat.recorder.start();
+                const btn = document.getElementById('voice-record-btn');
+                if(btn) btn.textContent = '⏺️ Aufnahme läuft...';
+            }).catch(() => notify('Mikrofonzugriff verweigert.', 'fail'));
+        }
+
+        function stopVoiceRecording(cancelOnly) {
+            const recorder = runtime.chat.recorder;
+            if(!recorder) return;
+            const btn = document.getElementById('voice-record-btn');
+            if(btn) btn.textContent = '🎤 Halten';
+            if(cancelOnly) runtime.chat.recordingFor = null;
+            if(recorder.state !== 'inactive') recorder.stop();
+        }
+
+        function finalizeVoiceRecording(friend) {
+            const stream = runtime.chat.stream;
+            if(stream) stream.getTracks().forEach(track => { track.stop(); });
+            runtime.chat.stream = null;
+            const chunks = runtime.chat.chunks.slice();
+            runtime.chat.chunks = [];
+            runtime.chat.recorder = null;
+            if(!runtime.chat.recordingFor || runtime.chat.recordingFor !== friend || !chunks.length) {
+                runtime.chat.recordingFor = null;
+                return;
+            }
+            runtime.chat.recordingFor = null;
+            const blob = new Blob(chunks, { type:'audio/webm' });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const audioData = typeof reader.result === 'string' ? reader.result : '';
+                const message = { from: state.currentUser, text:'', time: chatTimestamp(), type:'voice', audioData };
+                pushChatMessage(state.currentUser, friend, message);
+                pushChatMessage(friend, state.currentUser, message);
+                saveState();
+                const screen = document.getElementById('phone-screen');
+                if(screen && _phoneApp === 'chat') renderPhoneChat(screen);
+                scheduleBotReply(friend);
+            };
+            reader.readAsDataURL(blob);
+        }
+
+        function scheduleBotReply(friendUsername) {
+            const friend = state.accounts[friendUsername];
+            if(!friend || !friend.isBot) return;
+            const delay = 2000 + Math.floor(Math.random() * 3001);
+            setTimeout(() => {
+                const me = state.accounts[state.currentUser];
+                const bot = state.accounts[friendUsername];
+                if(!me || !bot) return;
+                ensureAccountDefaults(me, state.currentUser || '');
+                ensureAccountDefaults(bot, friendUsername);
+                const reply = {
+                    from: friendUsername,
+                    text: CHAT_BOT_REPLIES[Math.floor(Math.random() * CHAT_BOT_REPLIES.length)],
+                    time: chatTimestamp(),
+                    type:'text',
+                    audioData:''
+                };
+                pushChatMessage(state.currentUser, friendUsername, reply);
+                pushChatMessage(friendUsername, state.currentUser, reply);
+                saveState();
+                const screen = document.getElementById('phone-screen');
+                if(screen && _phoneApp === 'chat' && runtime.chat.activeFriend === friendUsername) renderPhoneChat(screen);
+            }, delay);
+        }
+
         function renderPhoneTab(c) {
             c.innerHTML = `
                 <h2 style="margin-bottom:16px;">📱 Handy</h2>
@@ -2912,6 +3545,122 @@
             phoneHome();
         }
 
+        function openFriendsModal() {
+            ensureAccountDefaults(getAcc(), state.currentUser || '');
+            renderFriendsModal();
+            openModal('modal-friends');
+        }
+
+        function renderFriendsModal() {
+            const acc = getAcc();
+            const wrap = document.getElementById('friends-modal-content');
+            if(!acc || !wrap) return;
+            ensureAccountDefaults(acc, state.currentUser || '');
+            const friends = acc.friends.map(username => {
+                const other = state.accounts[username];
+                const companyCount = other && Array.isArray(other.companies) ? other.companies.length : 0;
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#111;border:1px solid #2a2a40;border-radius:10px;gap:12px;">
+                    <div>
+                        <div style="font-weight:700;">${escapeHtml(username)}</div>
+                        <div style="font-size:12px;color:#888;">${companyCount} Firm${companyCount===1?'a':'en'}</div>
+                    </div>
+                    <button type="button" class="btn-secondary" onclick="openFriendChat('${escapeHtml(username)}')">💬 Chat</button>
+                </div>`;
+            }).join('');
+            const requests = acc.friendRequests.map(username => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#111;border:1px solid #2a2a40;border-radius:10px;gap:12px;">
+                <div style="font-weight:700;">${escapeHtml(username)}</div>
+                <div style="display:flex;gap:8px;">
+                    <button type="button" class="btn-primary" onclick="acceptFriendRequest('${escapeHtml(username)}')">Annehmen</button>
+                    <button type="button" class="btn-secondary" onclick="declineFriendRequest('${escapeHtml(username)}')">Ablehnen</button>
+                </div>
+            </div>`).join('');
+            wrap.innerHTML = `
+                <div style="display:grid;gap:18px;">
+                    <div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,0.02);">
+                        <div style="font-weight:700;margin-bottom:10px;">➕ Anfrage senden</div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <input id="friend-request-input" type="text" placeholder="Benutzername" style="flex:1;min-width:200px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+                            <button type="button" class="btn-primary" onclick="sendFriendRequest()">Anfrage senden</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-weight:700;margin-bottom:10px;">🤝 Deine Freunde (${acc.friends.length})</div>
+                        <div style="display:grid;gap:10px;">${friends || '<div style="color:#888;font-size:13px;padding:10px 0;">Noch keine Freunde hinzugefügt.</div>'}</div>
+                    </div>
+                    <div>
+                        <div style="font-weight:700;margin-bottom:10px;">📨 Eingehende Anfragen (${acc.friendRequests.length})</div>
+                        <div style="display:grid;gap:10px;">${requests || '<div style="color:#888;font-size:13px;padding:10px 0;">Keine offenen Freundschaftsanfragen.</div>'}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function sendFriendRequest(toUsername) {
+            const acc = getAcc();
+            if(!acc) return;
+            const input = document.getElementById('friend-request-input');
+            const targetName = (toUsername || (input ? input.value : '') || '').trim();
+            if(!targetName) { notify('Bitte einen Benutzernamen eingeben.', 'fail'); return; }
+            if(targetName === state.currentUser) { notify('Du kannst dir nicht selbst eine Anfrage senden.', 'fail'); return; }
+            const target = state.accounts[targetName];
+            if(!target) { notify('Dieser Benutzer existiert nicht.', 'fail'); return; }
+            ensureAccountDefaults(acc, state.currentUser || '');
+            ensureAccountDefaults(target, targetName);
+            if(acc.friends.includes(targetName)) { notify('Ihr seid bereits befreundet.', 'warn'); return; }
+            if(target.friendRequests.includes(state.currentUser)) { notify('Anfrage bereits gesendet.', 'warn'); return; }
+            target.friendRequests.push(state.currentUser);
+            saveState();
+            notify(`📨 Anfrage an ${targetName} gesendet.`, 'success');
+            if(input) input.value = '';
+            renderFriendsModal();
+            if(target.isBot) {
+                setTimeout(() => {
+                    const latestTarget = state.accounts[targetName];
+                    const me = state.accounts[state.currentUser];
+                    if(!latestTarget || !me) return;
+                    ensureAccountDefaults(latestTarget, targetName);
+                    if(latestTarget.friendRequests.includes(state.currentUser)) acceptFriendRequestForUser(targetName, state.currentUser, true);
+                }, 3000);
+            }
+        }
+
+        function acceptFriendRequest(fromUsername) {
+            acceptFriendRequestForUser(state.currentUser, fromUsername, false);
+        }
+
+        function acceptFriendRequestForUser(ownerUsername, fromUsername, silent) {
+            const owner = state.accounts[ownerUsername];
+            const from = state.accounts[fromUsername];
+            if(!owner || !from) return;
+            ensureAccountDefaults(owner, ownerUsername);
+            ensureAccountDefaults(from, fromUsername);
+            owner.friendRequests = owner.friendRequests.filter(u => u !== fromUsername);
+            if(!owner.friends.includes(fromUsername)) owner.friends.push(fromUsername);
+            if(!from.friends.includes(ownerUsername)) from.friends.push(ownerUsername);
+            saveState();
+            if(ownerUsername === state.currentUser) renderFriendsModal();
+            if(fromUsername === state.currentUser) renderFriendsModal();
+            if(!silent) notify(`🤝 Du bist jetzt mit ${fromUsername} befreundet.`, 'success');
+            else if(ownerUsername === state.currentUser || fromUsername === state.currentUser) notify(`🤖 ${ownerUsername === state.currentUser ? fromUsername : ownerUsername} hat deine Freundschaftsanfrage angenommen.`, 'success');
+        }
+
+        function declineFriendRequest(fromUsername) {
+            const acc = getAcc();
+            if(!acc) return;
+            ensureAccountDefaults(acc, state.currentUser || '');
+            acc.friendRequests = acc.friendRequests.filter(u => u !== fromUsername);
+            saveState();
+            renderFriendsModal();
+            notify(`Anfrage von ${fromUsername} abgelehnt.`, 'info');
+        }
+
+        function openFriendChat(username) {
+            closeModal('modal-friends');
+            if(currentTab !== 'phone') renderTab('phone');
+            runtime.chat.activeFriend = username;
+            phoneOpenApp('chat');
+        }
+
         function phoneHome() {
             _phoneApp = null;
             const screen = document.getElementById('phone-screen');
@@ -2924,6 +3673,7 @@
                     <div style="font-size:11px;color:#555;margin-bottom:12px;text-align:center;">Startseite</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
                         ${phoneAppIcon('📋','Aufträge','contracts','#6c63ff')}
+                        ${phoneAppIcon('💬','Chat','chat','#26a69a')}
                         ${phoneAppIcon('⭐','Bewertungen','reviews','#ff9100')}
                         ${phoneAppIcon('💬','Wünsche','wishes','#64b5f6')}
                         ${phoneAppIcon('🤖','Support','support','#00e676')}
@@ -2947,6 +3697,7 @@
             const screen = document.getElementById('phone-screen');
             if(!screen) return;
             if(app === 'contracts') renderPhoneContracts(screen);
+            else if(app === 'chat') renderPhoneChat(screen);
             else if(app === 'reviews') renderPhoneReviews(screen);
             else if(app === 'wishes') renderPhoneWishes(screen);
             else if(app === 'support') renderPhoneSupport(screen);
@@ -4526,7 +5277,7 @@
                 const progColor = firstContract ? (firstContract.phase==='returning'?'#ff9100':firstContract.phase==='driving'?'#00e5ff':'#00e676') : '#444';
                 const lastAction = acc._lastAction || '—';
                 const activeTab = acc._lastActionTab || 'dashboard';
-                const tabIcons = {dashboard:'🏠',contracts:'📋',employees:'👥',upgrades:'⬆️',shop:'🛍️',cars:'🚗',phone:'📱',wishes:'💬',dashboard:'🏠'};
+                const tabIcons = {dashboard:'🏠',contracts:'📋',employees:'👥',upgrades:'⬆️',shop:'🛍️',cars:'🚗',phone:'📱',wishes:'💬'};
                 const tabIcon = tabIcons[activeTab] || '🏠';
                 const focused = _iseeYouFocus === username;
                 return `<div onclick="iseeYouFocus('${username}')" style="cursor:pointer;background:${focused?'rgba(108,99,255,0.12)':'var(--card)'};border:1px solid ${focused?'var(--primary)':'var(--border)'};border-radius:12px;padding:14px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='${focused?'var(--primary)':'var(--border)'}'">
@@ -4662,11 +5413,11 @@
                 const grad = ctx.createLinearGradient(0,0,0,60);
                 grad.addColorStop(0,'rgba(108,99,255,0.5)'); grad.addColorStop(1,'rgba(108,99,255,0)');
                 ctx.beginPath(); ctx.moveTo(pts[0].x,60);
-                pts.forEach(p=>ctx.lineTo(p.x,p.y));
+                pts.forEach(p => { ctx.lineTo(p.x,p.y); });
                 ctx.lineTo(pts[pts.length-1].x,60); ctx.closePath();
                 ctx.fillStyle=grad; ctx.fill();
                 ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
-                pts.forEach(p=>ctx.lineTo(p.x,p.y));
+                pts.forEach(p => { ctx.lineTo(p.x,p.y); });
                 ctx.strokeStyle='#6c63ff'; ctx.lineWidth=2; ctx.stroke();
             }, 50);
         }
