@@ -317,6 +317,7 @@
                 <div class="nav-item" onclick="switchTab('stats', this)">📊 Statistiken</div>
                 <div class="nav-item" onclick="switchTab('shop', this)" style="color:gold;border-left-color:gold;">🛍️ Shop</div>
                 <div class="nav-item" onclick="switchTab('cars', this)">🚗 Fuhrpark</div>
+                <div class="nav-item" onclick="switchTab('subsidiaries', this)">🏗️ Töchter</div>
                 <div class="nav-item" onclick="switchTab('phone', this)">📱 Handy</div>
                 <div class="nav-item" id="nav-iseeyou" style="display:none;" onclick="switchTab('iseeyou', this)">👁️ I See You</div>
             </div>
@@ -612,7 +613,8 @@
                 constructionVehicles: [],
                 employeesHiredTotal: 0,
                 statsHistory: [],
-                weeklyContracts: []
+                weeklyContracts: [],
+                subsidiaries: []
             };
         }
 
@@ -632,6 +634,7 @@
             normalized.availableContracts = Array.isArray(normalized.availableContracts) ? normalized.availableContracts : [];
             normalized.upgrades = Array.isArray(normalized.upgrades) ? normalized.upgrades : [];
             normalized.warehouses = Array.isArray(normalized.warehouses) ? normalized.warehouses : [];
+            normalized.subsidiaries = Array.isArray(normalized.subsidiaries) ? normalized.subsidiaries : [];
             normalized.social = normalized.social && typeof normalized.social === 'object' ? normalized.social : { followers: 0, posts: [] };
             normalized.social.followers = Number.isFinite(normalized.social.followers) ? normalized.social.followers : 0;
             normalized.social.posts = Array.isArray(normalized.social.posts) ? normalized.social.posts : [];
@@ -1769,7 +1772,8 @@
                 activeContracts: [], availableContracts: [],
                 completedContracts: 0, failedContracts: 0,
                 upgrades: [], speedMult: 1.0, contractQuality: 1.0,
-                day: 1, hour: 8, totalEarned: 0, statsHistory: [], weeklyContracts: []
+                day: 1, hour: 8, totalEarned: 0, statsHistory: [], weeklyContracts: [],
+                subsidiaries: [], warehouses: []
             };
             acc.companies.push(nc);
             saveState();
@@ -1981,6 +1985,54 @@
                 // phase 'driving': no progress yet, car is on its way
             }
             
+            // ── Tick Subsidiaries ─────────────────────────────────────
+            (comp.subsidiaries || []).forEach(sub => {
+                // Give each subsidiary some basic autonomous work
+                sub.hour = (sub.hour || 0) + 1;
+                if(sub.hour >= 24) { sub.hour = 0; sub.day = (sub.day || 1) + 1; }
+
+                // Generate a simple available contract for the subsidiary every ~12 ticks
+                if(!sub.availableContracts) sub.availableContracts = [];
+                if(!sub.activeContracts) sub.activeContracts = [];
+                if(sub.availableContracts.length < 3 && Math.random() < 0.08) {
+                    const ct = COMPANY_TYPES[sub.companyType] || COMPANY_TYPES[Object.keys(COMPANY_TYPES)[0]];
+                    const templates = ct.contracts || [];
+                    if(templates.length > 0) {
+                        const tmpl = templates[Math.floor(Math.random() * templates.length)];
+                        sub.availableContracts.push({
+                            id: 'subc_' + Date.now() + Math.floor(Math.random()*100000),
+                            name: tmpl.name,
+                            reward: Math.round((tmpl.reward || 1000) * (0.8 + Math.random() * 0.6) * sub.reputation),
+                            duration: tmpl.duration || 20,
+                            prog: 0, phase: 'working'
+                        });
+                    }
+                }
+
+                // Auto-accept a contract if we have room
+                const maxSubContracts = 1 + Math.floor(sub.employees.length / 2);
+                if(sub.activeContracts.length < Math.max(1, maxSubContracts) && sub.availableContracts.length > 0) {
+                    sub.activeContracts.push(sub.availableContracts.shift());
+                }
+
+                // Tick active contracts (autonomous: uses reputation as power proxy)
+                const subPower = 0.5 + sub.reputation * 0.3 + sub.employees.length * 0.2;
+                for(let si = sub.activeContracts.length - 1; si >= 0; si--) {
+                    const sc = sub.activeContracts[si];
+                    sc.prog = (sc.prog || 0) + subPower;
+                    if(sc.prog >= 100) {
+                        // Complete contract: profit goes to parent
+                        const earned = sc.reward || 500;
+                        comp.money += earned;
+                        comp.totalEarned += earned;
+                        sub.totalEarned = (sub.totalEarned || 0) + earned;
+                        sub.completedContracts = (sub.completedContracts || 0) + 1;
+                        sub.reputation = Math.min(5.0, sub.reputation + 0.02);
+                        sub.activeContracts.splice(si, 1);
+                    }
+                }
+            });
+
             saveState();
             updateTopBar();
             tickUpdateTab(currentTab);
@@ -2255,6 +2307,8 @@
                 renderCarsTab(c);
             } else if (t === 'iseeyou') {
                 renderIseeYou(c);
+            } else if (t === 'subsidiaries') {
+                renderSubsidiariesTab(c);
             }
         }
 
@@ -2487,6 +2541,124 @@
             const ss = String(secsLeft%60).padStart(2,'0');
             el.textContent = `${hh}:${mm}:${ss}`;
         }, 1000);
+
+        // ── Subsidiaries ──────────────────────────────────────────────────────
+        const SUBSIDIARY_COSTS = [50000, 150000, 300000];
+
+        function getSubsidiaryCost(comp) {
+            const idx = (comp.subsidiaries || []).length;
+            return idx < SUBSIDIARY_COSTS.length ? SUBSIDIARY_COSTS[idx] : null;
+        }
+
+        function createSubsidiaryObj(parentComp, name, type) {
+            return {
+                id: 'sub_' + Date.now() + Math.floor(Math.random()*10000),
+                name: name,
+                logo: '🏭',
+                companyType: type || parentComp.companyType,
+                money: 0,
+                employees: [],
+                activeContracts: [],
+                availableContracts: [],
+                warehouses: [],
+                completedContracts: 0,
+                totalEarned: 0,
+                reputation: 2.5,
+                day: 1, hour: 0,
+                maxEmployees: 5,
+                speedMult: 1.0,
+                contractQuality: 1.0,
+                _profitBuffer: 0,
+                foundedAt: Date.now()
+            };
+        }
+
+        function subsidiaryCostText(comp) {
+            const cost = getSubsidiaryCost(comp);
+            if(cost === null) return '🚫 Max. 3 Töchter erreicht';
+            return `Gründen: ${formatMoney(cost)}`;
+        }
+
+        function foundSubsidiary() {
+            const comp = getComp();
+            if(!comp) return;
+            const nameEl = document.getElementById('sub-new-name');
+            const typeEl = document.getElementById('sub-new-type');
+            const name = (nameEl ? nameEl.value.trim() : '') || 'Tochter GmbH';
+            const type = typeEl ? typeEl.value : comp.companyType;
+            const cost = getSubsidiaryCost(comp);
+            if(cost === null) { notify('Maximal 3 Tochterunternehmen erlaubt.', 'fail'); return; }
+            if(comp.money < cost) { notify(`Nicht genug Geld! Benötigt: ${formatMoney(cost)}`, 'fail'); playSnd('fail'); return; }
+            comp.money -= cost;
+            if(!comp.subsidiaries) comp.subsidiaries = [];
+            comp.subsidiaries.push(createSubsidiaryObj(comp, name, type));
+            saveState();
+            notify(`🏭 Tochterunternehmen "${name}" gegründet!`, 'success');
+            playSnd('fanfare');
+            renderTab('subsidiaries');
+        }
+
+        function renderSubsidiariesTab(c) {
+            const comp = getComp();
+            const subs = comp.subsidiaries || [];
+            const cost = getSubsidiaryCost(comp);
+            const canAfford = cost !== null && comp.money >= cost;
+            const typeOptions = Object.entries(COMPANY_TYPES).map(([k,v]) =>
+                `<option value="${k}">${v.name || k}</option>`
+            ).join('');
+
+            let subCards = '';
+            subs.forEach((sub, idx) => {
+                const totalProfit = sub._profitBuffer !== undefined ? sub.totalEarned : sub.totalEarned;
+                subCards += `
+                <div class="card" style="margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                        <span style="font-size:32px;">${sub.logo}</span>
+                        <div>
+                            <div style="font-size:18px;font-weight:700;">${escapeHtml(sub.name)}</div>
+                            <div style="font-size:12px;color:#aaa;">${(COMPANY_TYPES[sub.companyType] && COMPANY_TYPES[sub.companyType].name) || sub.companyType} • Gegründet Tag ${sub.foundedAt ? '–' : '–'}</div>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+                        <div class="panel"><div style="font-size:11px;color:#aaa;">Mitarbeiter</div><div style="font-weight:700;">${sub.employees.length}/${sub.maxEmployees}</div></div>
+                        <div class="panel"><div style="font-size:11px;color:#aaa;">Aktive Aufträge</div><div style="font-weight:700;">${sub.activeContracts.length}</div></div>
+                        <div class="panel"><div style="font-size:11px;color:#aaa;">Gesamt verdient</div><div style="font-weight:700;">${formatMoney(sub.totalEarned)}</div></div>
+                    </div>
+                    <div style="font-size:12px;color:#aaa;margin-bottom:8px;">⭐ ${sub.reputation.toFixed(1)} Reputation &nbsp;|&nbsp; 📅 Tag ${sub.day}</div>
+                    <div style="font-size:12px;color:var(--success);">✅ Abgeschlossene Aufträge: ${sub.completedContracts}</div>
+                    <p style="font-size:11px;color:#888;margin-top:6px;">Gewinn fließt automatisch zur Muttergesellschaft.</p>
+                </div>`;
+            });
+
+            if(subs.length === 0) {
+                subCards = `<div style="color:#888;text-align:center;padding:30px 0;font-size:15px;">Noch keine Tochterunternehmen.<br>Gründe dein erstes unten!</div>`;
+            }
+
+            c.innerHTML = `
+                <h2>🏗️ Tochterunternehmen</h2>
+                <p style="color:#aaa;font-size:13px;margin-bottom:16px;">Töchter haben eigene Mitarbeiter und Aufträge. Ihr Gewinn fließt zur Muttergesellschaft.</p>
+                ${subCards}
+                ${cost !== null ? `
+                <div class="card" style="border:2px dashed var(--border);">
+                    <h3 style="margin-bottom:12px;">➕ Neue Tochter gründen</h3>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-size:13px;color:#aaa;">Name</label>
+                        <input id="sub-new-name" type="text" placeholder="Tochter GmbH" maxlength="40"
+                            style="width:100%;margin-top:4px;padding:8px;background:var(--card2,#1a1a1a);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+                    </div>
+                    <div style="margin-bottom:14px;">
+                        <label style="font-size:13px;color:#aaa;">Firmentyp</label>
+                        <select id="sub-new-type" style="width:100%;margin-top:4px;padding:8px;background:var(--card2,#1a1a1a);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;">
+                            ${typeOptions}
+                        </select>
+                    </div>
+                    <button onclick="foundSubsidiary()" class="btn-primary" style="width:100%;" ${canAfford ? '' : 'disabled'}>
+                        🏭 ${subsidiaryCostText(comp)}
+                    </button>
+                    ${!canAfford && cost !== null ? `<p style="color:var(--fail,#f44);font-size:12px;margin-top:6px;">Fehlend: ${formatMoney(cost - comp.money)}</p>` : ''}
+                </div>` : `<div class="card" style="text-align:center;color:#888;">🚫 Maximal 3 Tochterunternehmen erreicht.</div>`}
+            `;
+        }
 
         function renderShopTab(c) {
             const acc = state.accounts[state.currentUser];
