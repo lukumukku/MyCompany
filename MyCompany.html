@@ -613,12 +613,13 @@
             'Wenn du willst, kann ich dir später Feedback geben.',
             'Haha, das klingt nach einem stressigen Tag 😄'
         ];
-        const runtime = {
-            onlineMode: false,
-            onlineMap: { visible: false, markers: [], contracts: [], playerPos: null, refreshAt: 0 },
-            chat: { activeFriend: null, recorder: null, stream: null, chunks: [], recordingFor: null },
-            companyMenuMode: 'offline'
-        };
+         const runtime = {
+             onlineMode: false,
+             isOnlineSession: false,
+             onlineMap: { visible: false, markers: [], contracts: [], playerPos: null, refreshAt: 0 },
+             chat: { activeFriend: null, recorder: null, stream: null, chunks: [], recordingFor: null },
+             companyMenuMode: 'offline'
+         };
 
         let spectatorRefreshInterval = null;
         let spectatorSelectedUser = null;
@@ -1709,32 +1710,50 @@
         }
         function renderCompanies() {
             const acc = getAcc();
+            const isOnline = runtime.companyMenuMode === 'online';
             const grid = document.getElementById('menu-companies');
             const modeBar = document.getElementById('menu-mode-buttons');
             if(modeBar) {
                 modeBar.innerHTML = `
-                    <button type="button" class="${runtime.companyMenuMode === 'offline' ? 'btn-primary' : 'btn-secondary'}" onclick="setCompanyMenuMode('offline')">🏠 Offline</button>
-                    <button type="button" class="${runtime.companyMenuMode === 'online' ? 'btn-primary' : 'btn-secondary'}" onclick="setCompanyMenuMode('online')">🌐 Online (Beta)</button>
+                    <button type="button" class="${!isOnline ? 'btn-primary' : 'btn-secondary'}" onclick="setCompanyMenuMode('offline')">🏠 Offline</button>
+                    <button type="button" class="${isOnline ? 'btn-primary' : 'btn-secondary'}" onclick="setCompanyMenuMode('online')">🌐 Online</button>
                 `;
             }
-            if(runtime.companyMenuMode === 'online') {
-                showOnlineMapOverlay();
-            } else {
-                hideOnlineMapOverlay();
-            }
             grid.innerHTML = '';
+            // Online mode: show a header explaining online mode
+            if(isOnline) {
+                const onlineHeader = document.createElement('div');
+                onlineHeader.style.cssText = 'grid-column:1/-1;background:linear-gradient(135deg,#00232e,#001a2e);border:1px solid #00e5ff44;border-radius:12px;padding:16px 20px;margin-bottom:4px;';
+                const acc2 = getAcc();
+                const hasServer = acc2 && acc2.privateServer;
+                onlineHeader.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div style="font-size:28px;">🌐</div>
+                        <div>
+                            <div style="font-weight:800;font-size:16px;color:#00e5ff;">Online-Modus</div>
+                            <div style="font-size:12px;color:#8ca0b0;margin-top:2px;">Spiele mit deiner Firma online – andere Spieler (Bots) konkurrieren mit dir in Echtzeit.</div>
+                        </div>
+                        <div style="margin-left:auto;">
+                            ${hasServer
+                                ? `<span style="background:#00c853;color:#000;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;">🔒 Privater Server aktiv</span>`
+                                : `<button class="btn-secondary" style="font-size:12px;" onclick="openBuyServerModal()">🖥️ Privaten Server kaufen (10€)</button>`}
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(onlineHeader);
+            }
             acc.companies.forEach(c => {
                 ensureCompanyDefaults(c);
                 const ct = COMPANY_TYPES[c.companyType];
                 const card = document.createElement('div');
                 card.className = 'company-card';
-                card.style.borderLeftColor = ct.color;
+                card.style.borderLeftColor = isOnline ? '#00e5ff' : ct.color;
                 const isImg = c.logo.startsWith('data:');
                 card.innerHTML = `
                     <div class="cc-header">
                         <div class="cc-logo" style="background:rgba(255,255,255,0.1)">${isImg ? `<img src="${c.logo}">` : c.logo}</div>
                         <div style="flex:1;">
-                            <div class="cc-title">${c.companyName}</div>
+                            <div class="cc-title">${c.companyName}${isOnline ? ' <span style="font-size:11px;color:#00e5ff;background:#001a2e;border-radius:8px;padding:1px 6px;">🌐 Online</span>' : ''}</div>
                             <div class="cc-type">${ct.name}</div>
                         </div>
                         <button onclick="event.stopPropagation();deleteCompany('${c.id}')" title="Firma löschen" style="background:none;border:none;color:#555;font-size:18px;padding:4px 6px;border-radius:4px;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='#555'">🗑️</button>
@@ -1745,12 +1764,12 @@
                         <span>Tag ${c.day}</span>
                     </div>
                 `;
-                card.onclick = () => loadGame(c.id);
+                card.onclick = isOnline ? () => loadOnlineGame(c.id) : () => loadGame(c.id);
                 grid.appendChild(card);
             });
             const newCard = document.createElement('div');
             newCard.className = 'company-card-new';
-            newCard.innerText = "+ Neue Firma gründen";
+            newCard.innerText = isOnline ? '+ Neue Firma (Online)' : '+ Neue Firma gründen';
             newCard.onclick = openCreateModal;
             grid.appendChild(newCard);
         }
@@ -1762,189 +1781,49 @@
 
         function setMenuMode(mode) {
             runtime.onlineMode = mode === 'online';
+            runtime.companyMenuMode = mode === 'online' ? 'online' : 'offline';
             const buttons = document.getElementById('menu-online-mode-switch');
             if(buttons) {
                 buttons.innerHTML = `
-                    <button type="button" class="${runtime.onlineMode ? 'btn-secondary' : 'btn-primary'}" onclick="setMenuMode('normal')">🏠 Normal</button>
+                    <button type="button" class="${!runtime.onlineMode ? 'btn-primary' : 'btn-secondary'}" onclick="setMenuMode('normal')">🏠 Normal</button>
                     <button type="button" class="${runtime.onlineMode ? 'btn-primary' : 'btn-secondary'}" onclick="setMenuMode('online')">🌐 Online</button>
                 `;
             }
-            if(runtime.onlineMode) showOnlineMapOverlay();
-            else hideOnlineMapOverlay();
+            renderCompanies();
         }
 
-        function ensureOnlineMapState() {
-            const map = runtime.onlineMap;
-            if(!map.playerPos) map.playerPos = { x:0.5, y:0.52 };
-            if(!map.markers.length) {
-                const bots = Object.entries(state.accounts)
-                    .filter(([username, acc]) => acc && acc.isBot && acc.companies && acc.companies[0])
-                    .slice(0, 26);
-                map.markers = bots.map(([username, acc], index) => ({
-                    username,
-                    companyName: acc.companies[0].companyName,
-                    color: (COMPANY_TYPES[acc.companies[0].companyType] || { color:'#64b5f6' }).color,
-                    x: 0.08 + ((index * 37) % 82) / 100,
-                    y: 0.12 + ((index * 19) % 72) / 100
-                }));
-            }
-            if(!map.contracts.length || Date.now() >= map.refreshAt) refreshOnlineContracts();
+        // ── Online Session ─────────────────────────────────────────────────────
+        // Online mode reuses the full screen-game UI.
+        // runtime.isOnlineSession = true while in an online game.
+        // Bot companies act as "other online players" shown in the 🌐 Online tab.
+
+        function loadOnlineGame(compId) {
+            runtime.isOnlineSession = true;
+            loadGame(compId);
+            // Inject online tab into sidebar after game loads
+            setTimeout(() => {
+                const sidebar = document.querySelector('#screen-game .sidebar');
+                if(sidebar && !document.getElementById('nav-online')) {
+                    const el = document.createElement('div');
+                    el.className = 'nav-item';
+                    el.id = 'nav-online';
+                    el.style.cssText = 'color:#00e5ff;border-left-color:#00e5ff;';
+                    el.textContent = '🌐 Online';
+                    el.onclick = function() { switchTab('online', el); };
+                    // Insert before phone
+                    const phoneNav = sidebar.querySelector('[onclick*="phone"]');
+                    if(phoneNav) sidebar.insertBefore(el, phoneNav);
+                    else sidebar.appendChild(el);
+                }
+            }, 50);
         }
 
-        function refreshOnlineContracts() {
-            runtime.onlineMap.contracts = Array.from({ length: 18 }, (_, index) => ({
-                id: 'omap_' + Date.now() + '_' + index,
-                x: 0.10 + ((index * 17) % 78) / 100,
-                y: 0.12 + ((index * 29) % 70) / 100,
-                reward: 1200 + Math.floor(Math.random() * 4800),
-                title: ['Schnellauftrag','VIP-Termin','Lieferroute','Einsatz','Servicevertrag'][index % 5]
-            }));
-            runtime.onlineMap.refreshAt = Date.now() + 30000;
-            if(runtime.onlineMap.visible) drawOnlineMap();
-        }
-
-        function showOnlineMapOverlay() {
-            runtime.onlineMap.visible = true;
-            ensureOnlineMapState();
-            runtime.companyMenuMode = 'online';
-            let overlay = document.getElementById('online-map-overlay');
-            if(!overlay) {
-                overlay = document.createElement('div');
-                overlay.id = 'online-map-overlay';
-                overlay.style.cssText = 'position:fixed;inset:0;z-index:120;background:rgba(10,10,18,0.96);display:flex;flex-direction:column;padding:20px;';
-                overlay.innerHTML = `
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:24px;font-weight:800;">🌐 Berlin Online-Modus</div>
-                            <div style="color:#8c91b3;font-size:13px;">Klicke rote Pins, um Aufträge wegzuschnappen.</div>
-                        </div>
-                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                            <span id="online-map-refresh-label" style="font-size:12px;color:#aaa;"></span>
-                            <button type="button" class="btn-secondary" onclick="hideOnlineMapOverlay()">🔙 Zurück</button>
-                        </div>
-                    </div>
-                    <canvas id="online-map-canvas" style="flex:1;width:100%;border:1px solid #2a2a40;border-radius:18px;background:#1a1a2e;"></canvas>
-                `;
-                document.body.appendChild(overlay);
-                const canvas = document.getElementById('online-map-canvas');
-                canvas.addEventListener('click', handleOnlineMapClick);
-                window.addEventListener('resize', resizeOnlineCanvas);
-            } else {
-                overlay.style.display = 'flex';
-            }
-            resizeOnlineCanvas();
-            drawOnlineMap();
-        }
-
-        function hideOnlineMapOverlay() {
-            runtime.onlineMap.visible = false;
-            runtime.onlineMode = false;
-            runtime.companyMenuMode = 'offline';
-            const overlay = document.getElementById('online-map-overlay');
-            if(overlay) overlay.style.display = 'none';
-            const menuButtons = document.getElementById('menu-online-mode-switch');
-            if(menuButtons) {
-                menuButtons.innerHTML = `
-                    <button type="button" class="btn-primary" onclick="setMenuMode('normal')">🏠 Normal</button>
-                    <button type="button" class="btn-secondary" onclick="setMenuMode('online')">🌐 Online</button>
-                `;
-            }
-        }
-
-        function resizeOnlineCanvas() {
-            const canvas = document.getElementById('online-map-canvas');
-            if(!canvas) return;
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = Math.max(900, Math.floor(rect.width));
-            canvas.height = Math.max(520, Math.floor(rect.height));
-            if(runtime.onlineMap.visible) drawOnlineMap();
-        }
-
-        function drawOnlineMap() {
-            const canvas = document.getElementById('online-map-canvas');
-            if(!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width;
-            const H = canvas.height;
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, W, H);
-            ctx.strokeStyle = '#2f364d';
-            ctx.lineWidth = 2;
-            for(let x = W * 0.12; x < W * 0.9; x += W * 0.085) {
-                ctx.beginPath();
-                ctx.moveTo(x, H * 0.08);
-                ctx.lineTo(x + Math.sin(x * 0.01) * 24, H * 0.92);
-                ctx.stroke();
-            }
-            for(let y = H * 0.14; y < H * 0.88; y += H * 0.1) {
-                ctx.beginPath();
-                ctx.moveTo(W * 0.06, y);
-                ctx.lineTo(W * 0.94, y + Math.cos(y * 0.015) * 18);
-                ctx.stroke();
-            }
-            ctx.strokeStyle = '#474f6d';
-            ctx.lineWidth = 3;
-            [[0.12,0.85,0.78,0.12],[0.05,0.20,0.95,0.72],[0.25,0.08,0.82,0.9],[0.14,0.52,0.92,0.32]].forEach(line => {
-                ctx.beginPath();
-                ctx.moveTo(line[0] * W, line[1] * H);
-                ctx.lineTo(line[2] * W, line[3] * H);
-                ctx.stroke();
-            });
-            ONLINE_MAP_DISTRICTS.forEach(d => {
-                ctx.fillStyle = '#8ea0c6';
-                ctx.font = 'bold 18px Inter';
-                ctx.fillText(d.name, d.x * W, d.y * H);
-            });
-            runtime.onlineMap.markers.forEach(marker => {
-                const x = marker.x * W, y = marker.y * H;
-                ctx.fillStyle = marker.color;
-                ctx.beginPath();
-                ctx.arc(x, y, 6, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#eef1ff';
-                ctx.font = '12px Inter';
-                ctx.fillText(marker.companyName, x + 10, y - 8);
-            });
-            runtime.onlineMap.contracts.forEach(pin => {
-                const x = pin.x * W, y = pin.y * H;
-                ctx.fillStyle = '#ff5252';
-                ctx.beginPath();
-                ctx.arc(x, y, 7, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#ffd1d1';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(x, y + 8);
-                ctx.lineTo(x, y + 16);
-                ctx.stroke();
-            });
-            const px = runtime.onlineMap.playerPos.x * W;
-            const py = runtime.onlineMap.playerPos.y * H;
-            ctx.fillStyle = '#ffd54f';
-            ctx.font = '28px Inter';
-            ctx.fillText('★', px - 10, py + 10);
-            const label = document.getElementById('online-map-refresh-label');
-            if(label) label.textContent = `Neue Pins in ${Math.max(0, Math.ceil((runtime.onlineMap.refreshAt - Date.now()) / 1000))}s`;
-        }
-
-        function handleOnlineMapClick(event) {
-            const canvas = document.getElementById('online-map-canvas');
-            const comp = getComp() || (getAcc() && getAcc().companies && getAcc().companies[0]);
-            if(!canvas || !comp) return;
-            const rect = canvas.getBoundingClientRect();
-            const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-            const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
-            const hitIndex = runtime.onlineMap.contracts.findIndex(pin => Math.hypot(pin.x * canvas.width - x, pin.y * canvas.height - y) <= 18);
-            if(hitIndex === -1) return;
-            const pin = runtime.onlineMap.contracts.splice(hitIndex, 1)[0];
-            comp.money += pin.reward;
-            comp.totalEarned = (comp.totalEarned || 0) + pin.reward;
-            saveState();
-            notify(`🌐 ${pin.title} geschnappt! +${formatMoney(pin.reward)}`, 'success');
-            drawOnlineMap();
-            if(currentCompId === comp.id) updateTopBar();
-            if(document.getElementById('menu-companies')) renderCompanies();
-        }
+        function showOnlineMapOverlay() { /* legacy no-op */ }
+        function hideOnlineMapOverlay() { /* legacy no-op */ }
+        function ensureOnlineMapState() { /* legacy no-op */ }
+        function drawOnlineMap() { /* legacy no-op */ }
+        function resizeOnlineCanvas() { /* legacy no-op */ }
+        function handleOnlineMapClick() { /* legacy no-op */ }
 
         // --- COMPANY CREATION & LOGO ---
         function deleteCompany(id) {
@@ -2136,6 +2015,10 @@
             playSnd('click');
             if(gameLoop) clearInterval(gameLoop);
             currentCompId = null;
+            runtime.isOnlineSession = false;
+            // Remove injected online nav tab
+            const onlineNav = document.getElementById('nav-online');
+            if(onlineNav) onlineNav.remove();
             document.documentElement.style.setProperty('--primary', '#6c63ff');
             initMenu();
         }
@@ -2642,12 +2525,125 @@
                 renderIseeYou(c);
             } else if (t === 'subsidiaries') {
                 renderSubsidiariesTab(c);
+            } else if (t === 'online') {
+                renderOnlineTab(c);
             }
         }
 
+        // ── Online Tab ───────────────────────────────────────────────────────
+        function renderOnlineTab(comp) {
+            const c = document.getElementById('game-content');
+            const acc = getAcc();
+            const hasServer = acc && acc.privateServer;
+            const bal = acc ? (acc.balance || 0).toFixed(2) : '0.00';
+
+            // Build leaderboard from bot accounts
+            const bots = Object.entries(state.accounts)
+                .filter(([u, a]) => a && a.isBot && a.companies && a.companies[0])
+                .map(([u, a]) => ({ username: u, comp: a.companies[0] }))
+                .sort((a, b) => (b.comp.money || 0) - (a.comp.money || 0))
+                .slice(0, 15);
+
+            const playerRank = [{ username: state.currentUser, comp }]
+                .concat(bots)
+                .sort((a, b) => (b.comp.money || 0) - (a.comp.money || 0))
+                .findIndex(x => x.username === state.currentUser) + 1;
+
+            const leaderboardRows = [{ username: state.currentUser, comp }]
+                .concat(bots)
+                .sort((a, b) => (b.comp.money || 0) - (a.comp.money || 0))
+                .slice(0, 16)
+                .map((entry, i) => {
+                    const isMe = entry.username === state.currentUser;
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+                    return `<tr style="${isMe ? 'background:#00e5ff18;font-weight:800;' : ''}">
+                        <td style="padding:8px 12px;color:#aaa;">${medal}</td>
+                        <td style="padding:8px 12px;">${escapeHtml(entry.comp.companyName || entry.username)}${isMe ? ' <span style="color:#00e5ff;font-size:11px;">(Du)</span>' : ''}</td>
+                        <td style="padding:8px 12px;color:#aaa;font-size:12px;">${(COMPANY_TYPES[entry.comp.companyType] && COMPANY_TYPES[entry.comp.companyType].name) || entry.comp.companyType || ''}</td>
+                        <td style="padding:8px 12px;text-align:right;color:var(--success);">${formatMoney(entry.comp.money || 0)}</td>
+                        <td style="padding:8px 12px;text-align:right;">⭐ ${(entry.comp.reputation || 0).toFixed(1)}</td>
+                    </tr>`;
+                }).join('');
+
+            c.innerHTML = `
+                <h2>🌐 Online-Modus</h2>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px;">
+                    <div class="panel" style="background:#00232e;">
+                        <div style="font-size:11px;color:#00e5ff;">Dein Rang</div>
+                        <div style="font-size:22px;font-weight:800;">#${playerRank}</div>
+                    </div>
+                    <div class="panel" style="background:#00232e;">
+                        <div style="font-size:11px;color:#00e5ff;">Online-Spieler</div>
+                        <div style="font-size:22px;font-weight:800;">${bots.length + 1}</div>
+                    </div>
+                    <div class="panel" style="background:#00232e;">
+                        <div style="font-size:11px;color:#00e5ff;">Server</div>
+                        <div style="font-size:14px;font-weight:700;">${hasServer ? '🔒 Privat' : '🌍 Öffentlich'}</div>
+                    </div>
+                </div>
+
+                ${!hasServer ? `
+                <div class="card" style="border:1px solid #00e5ff44;background:#001a2e;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div style="font-size:32px;">🖥️</div>
+                        <div style="flex:1;">
+                            <div style="font-weight:800;font-size:15px;">Privaten Server kaufen</div>
+                            <div style="font-size:12px;color:#8ca0b0;margin-top:3px;">Nur du und deine Freunde spielen zusammen. Keine fremden Bots. Kosten: <strong>10,00€ Guthaben</strong>.</div>
+                            <div style="font-size:12px;color:#aaa;margin-top:2px;">Dein Guthaben: <strong>${bal}€</strong></div>
+                        </div>
+                        <button class="btn-primary" onclick="buyPrivateServer()" ${parseFloat(bal) < 10 ? 'disabled title="Nicht genug Guthaben"' : ''}>Kaufen (10,00€)</button>
+                    </div>
+                </div>` : `
+                <div class="card" style="border:1px solid #00c85344;background:#001a0e;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div style="font-size:32px;">🔒</div>
+                        <div>
+                            <div style="font-weight:800;font-size:15px;color:#00c853;">Privater Server aktiv</div>
+                            <div style="font-size:12px;color:#8ca0b0;margin-top:3px;">Nur du und deine Freunde spielen auf diesem Server.</div>
+                        </div>
+                    </div>
+                </div>`}
+
+                <div class="card">
+                    <h3 style="margin-bottom:12px;">🏆 Rangliste</h3>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                            <thead>
+                                <tr style="color:#aaa;font-size:12px;border-bottom:1px solid #2a2a40;">
+                                    <th style="padding:6px 12px;text-align:left;">Rang</th>
+                                    <th style="padding:6px 12px;text-align:left;">Firma</th>
+                                    <th style="padding:6px 12px;text-align:left;">Typ</th>
+                                    <th style="padding:6px 12px;text-align:right;">Geld</th>
+                                    <th style="padding:6px 12px;text-align:right;">Rep.</th>
+                                </tr>
+                            </thead>
+                            <tbody>${leaderboardRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function buyPrivateServer() {
+            const acc = getAcc();
+            if(!acc) return;
+            const bal = acc.balance || 0;
+            if(bal < 10) { notify('Nicht genug Guthaben! Benötigt: 10,00€', 'fail'); return; }
+            acc.balance = Math.round((bal - 10) * 100) / 100;
+            acc.privateServer = true;
+            saveState();
+            notify('🔒 Privater Server gekauft! Du spielst jetzt auf deinem eigenen Server.', 'success');
+            playSnd('fanfare');
+            renderTab('online');
+        }
+
+        function openBuyServerModal() {
+            buyPrivateServer();
+         }
+
+
         function renderCarsTab(c) {
             const comp = getComp();
-            if(!comp.cars) comp.cars = [];
             if(!comp.constructionVehicles) comp.constructionVehicles = [];
 
             const assignedElsewhere = (idx) => comp.cars
@@ -3406,7 +3402,7 @@
                             <input id="phone-chat-input" type="text" placeholder="Nachricht schreiben..." style="flex:1;padding:10px;border-radius:10px;border:1px solid #2a2a40;background:#111;color:#fff;" onkeydown="if(event.key==='Enter') sendChatMessage()">
                             <button type="button" class="btn-primary" style="padding:10px 12px;" onclick="sendChatMessage()">Senden</button>
                         </div>
-                        <button type="button" class="btn-secondary" id="voice-record-btn" onmousedown="startVoiceRecording()" onmouseup="stopVoiceRecording()" onmouseleave="stopVoiceRecording()" ontouchstart="startVoiceRecording();event.preventDefault();" ontouchend="stopVoiceRecording();event.preventDefault();">🎤 Halten</button>
+                         <button type="button" class="btn-secondary" id="voice-record-btn" onclick="toggleVoiceRecording()">🎤 Aufnehmen</button>
                     </div>
                 </div>
             `;
@@ -3436,63 +3432,79 @@
             scheduleBotReply(friend);
         }
 
-        function startVoiceRecording() {
-            const friend = runtime.chat.activeFriend;
-            if(!friend || runtime.chat.recordingFor) return;
-            if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-                notify('Sprachnachrichten werden auf diesem Gerät nicht unterstützt.', 'fail');
-                return;
-            }
-            navigator.mediaDevices.getUserMedia({ audio:true }).then(stream => {
-                runtime.chat.stream = stream;
-                runtime.chat.chunks = [];
-                runtime.chat.recordingFor = friend;
-                runtime.chat.recorder = new MediaRecorder(stream);
-                runtime.chat.recorder.ondataavailable = ev => {
-                    if(ev.data && ev.data.size > 0) runtime.chat.chunks.push(ev.data);
-                };
-                runtime.chat.recorder.onstop = () => finalizeVoiceRecording(friend);
-                runtime.chat.recorder.start();
-                const btn = document.getElementById('voice-record-btn');
-                if(btn) btn.textContent = '⏺️ Aufnahme läuft...';
-            }).catch(() => notify('Mikrofonzugriff verweigert.', 'fail'));
-        }
+         function toggleVoiceRecording() {
+             // If already recording → stop
+             if(runtime.chat.recorder && runtime.chat.recorder.state !== 'inactive') {
+                 const btn = document.getElementById('voice-record-btn');
+                 if(btn) { btn.textContent = '🎤 Aufnehmen'; btn.style.background = ''; }
+                 runtime.chat.recorder.stop();
+                 return;
+             }
+             const friend = runtime.chat.activeFriend;
+             if(!friend) return;
+             // Check support
+             if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+                 notify('❌ Mikrofon wird nicht unterstützt. Öffne die Datei über einen lokalen Server (z.B. http://localhost).', 'fail');
+                 return;
+             }
+             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                 runtime.chat.stream = stream;
+                 runtime.chat.chunks = [];
+                 runtime.chat.recordingFor = friend;
+                 // Pick best supported mime type
+                 const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg',''].find(m => !m || MediaRecorder.isTypeSupported(m));
+                 const recOpts = mimeType ? { mimeType } : {};
+                 runtime.chat.recorder = new MediaRecorder(stream, recOpts);
+                 runtime.chat.recorder.ondataavailable = ev => {
+                     if(ev.data && ev.data.size > 0) runtime.chat.chunks.push(ev.data);
+                 };
+                 runtime.chat.recorder.onstop = () => finalizeVoiceRecording(friend, mimeType || 'audio/webm');
+                 runtime.chat.recorder.start();
+                 const btn = document.getElementById('voice-record-btn');
+                 if(btn) { btn.textContent = '⏹️ Stopp (aufnimmt...)'; btn.style.background = '#c00'; }
+             }).catch(err => {
+                 const msg = err && err.name === 'NotAllowedError'
+                     ? '❌ Mikrofonzugriff verweigert. Bitte Berechtigung erteilen.'
+                     : '❌ Mikrofon nicht verfügbar: ' + (err && err.message || err);
+                 notify(msg, 'fail');
+             });
+         }
 
-        function stopVoiceRecording(cancelOnly) {
-            const recorder = runtime.chat.recorder;
-            if(!recorder) return;
-            const btn = document.getElementById('voice-record-btn');
-            if(btn) btn.textContent = '🎤 Halten';
-            if(cancelOnly) runtime.chat.recordingFor = null;
-            if(recorder.state !== 'inactive') recorder.stop();
-        }
+         function startVoiceRecording() { toggleVoiceRecording(); }
+         function stopVoiceRecording() {
+             if(runtime.chat.recorder && runtime.chat.recorder.state !== 'inactive') {
+                 runtime.chat.recorder.stop();
+                 const btn = document.getElementById('voice-record-btn');
+                 if(btn) { btn.textContent = '🎤 Aufnehmen'; btn.style.background = ''; }
+             }
+         }
 
-        function finalizeVoiceRecording(friend) {
-            const stream = runtime.chat.stream;
-            if(stream) stream.getTracks().forEach(track => { track.stop(); });
-            runtime.chat.stream = null;
-            const chunks = runtime.chat.chunks.slice();
-            runtime.chat.chunks = [];
-            runtime.chat.recorder = null;
-            if(!runtime.chat.recordingFor || runtime.chat.recordingFor !== friend || !chunks.length) {
-                runtime.chat.recordingFor = null;
-                return;
-            }
-            runtime.chat.recordingFor = null;
-            const blob = new Blob(chunks, { type:'audio/webm' });
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const audioData = typeof reader.result === 'string' ? reader.result : '';
-                const message = { from: state.currentUser, text:'', time: chatTimestamp(), type:'voice', audioData };
-                pushChatMessage(state.currentUser, friend, message);
-                pushChatMessage(friend, state.currentUser, message);
-                saveState();
-                const screen = document.getElementById('phone-screen');
-                if(screen && _phoneApp === 'chat') renderPhoneChat(screen);
-                scheduleBotReply(friend);
-            };
-            reader.readAsDataURL(blob);
-        }
+        function finalizeVoiceRecording(friend, mimeType) {
+             const stream = runtime.chat.stream;
+             if(stream) stream.getTracks().forEach(track => { track.stop(); });
+             runtime.chat.stream = null;
+             const chunks = runtime.chat.chunks.slice();
+             runtime.chat.chunks = [];
+             runtime.chat.recorder = null;
+             if(!chunks.length) { runtime.chat.recordingFor = null; notify('Keine Aufnahme gefunden.', 'fail'); return; }
+             runtime.chat.recordingFor = null;
+             const usedMime = mimeType || 'audio/webm';
+             const blob = new Blob(chunks, { type: usedMime });
+             const reader = new FileReader();
+             reader.onloadend = () => {
+                 const audioData = typeof reader.result === 'string' ? reader.result : '';
+                 if(!audioData) { notify('Aufnahme konnte nicht gespeichert werden.', 'fail'); return; }
+                 const message = { from: state.currentUser, text:'', time: chatTimestamp(), type:'voice', audioData };
+                 pushChatMessage(state.currentUser, friend, message);
+                 pushChatMessage(friend, state.currentUser, message);
+                 saveState();
+                 const screen = document.getElementById('phone-screen');
+                 if(screen && _phoneApp === 'chat') renderPhoneChat(screen);
+                 scheduleBotReply(friend);
+                 notify('🎤 Sprachnachricht gesendet!', 'success');
+             };
+             reader.readAsDataURL(blob);
+         }
 
         function scheduleBotReply(friendUsername) {
             const friend = state.accounts[friendUsername];
